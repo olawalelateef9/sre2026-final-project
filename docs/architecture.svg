@@ -1,0 +1,189 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1180" viewBox="0 0 1800 1180" role="img" aria-labelledby="title description">
+  <title id="title">Techbleat Global Bank target architecture</title>
+  <desc id="description">Architecture diagram showing Cloudflare edge security, Kubernetes workloads protected by Istio, managed data services, Datadog observability, and a Backstage, GitHub Actions, container registry, and Argo CD delivery pipeline.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#536579"/>
+    </marker>
+    <marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#7356a5"/>
+    </marker>
+    <style>
+      text { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #172b3a; }
+      .title { font-size: 32px; font-weight: 700; }
+      .subtitle { font-size: 16px; fill: #526579; }
+      .section { font-size: 19px; font-weight: 700; }
+      .label { font-size: 17px; font-weight: 700; }
+      .small { font-size: 14px; fill: #43576a; }
+      .tiny { font-size: 12px; fill: #526579; }
+      .node { stroke-width: 2; rx: 12; }
+      .edge { fill: #fff2e8; stroke: #d97732; }
+      .platform { fill: #f2edff; stroke: #8064b0; }
+      .workload { fill: #eaf5ff; stroke: #4386b2; }
+      .database { fill: #eaf7ed; stroke: #4d8a5b; }
+      .observe { fill: #fff8df; stroke: #c49a20; }
+      .outline { fill: #f8fbfd; stroke: #7890a3; stroke-width: 2; }
+      .line { fill: none; stroke: #536579; stroke-width: 2.5; marker-end: url(#arrow); }
+      .dashed { fill: none; stroke: #7356a5; stroke-width: 2.5; stroke-dasharray: 8 6; marker-end: url(#arrowPurple); }
+      .telemetry { fill: none; stroke: #c49a20; stroke-width: 2; stroke-dasharray: 5 6; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1800" height="1180" fill="#ffffff"/>
+  <text x="60" y="58" class="title">Techbleat Global Bank | Target Architecture</text>
+  <text x="60" y="88" class="subtitle">Proposed platform architecture — Cloudflare, Kubernetes/Istio, Backstage and Datadog are target integrations, not current deployments.</text>
+
+  <!-- Customer entry and identity -->
+  <rect x="60" y="125" width="190" height="86" class="node outline"/>
+  <text x="155" y="160" text-anchor="middle" class="label">Customers</text>
+  <text x="155" y="186" text-anchor="middle" class="small">Browser · HTTPS</text>
+
+  <rect x="315" y="125" width="275" height="86" class="node edge"/>
+  <text x="452" y="157" text-anchor="middle" class="label">Cloudflare</text>
+  <text x="452" y="181" text-anchor="middle" class="small">DNS · CDN · DDoS · WAF · bot / rate limits</text>
+
+  <rect x="655" y="125" width="230" height="86" class="node edge"/>
+  <text x="770" y="157" text-anchor="middle" class="label">Cloud load balancer</text>
+  <text x="770" y="181" text-anchor="middle" class="small">Origin restricted to Cloudflare</text>
+
+  <rect x="950" y="125" width="240" height="86" class="node edge"/>
+  <text x="1070" y="157" text-anchor="middle" class="label">Istio ingress gateway</text>
+  <text x="1070" y="181" text-anchor="middle" class="small">TLS · ingress routing / policy</text>
+
+  <rect x="1350" y="125" width="360" height="86" class="node platform"/>
+  <text x="1530" y="157" text-anchor="middle" class="label">Keycloak · OIDC identity</text>
+  <text x="1530" y="181" text-anchor="middle" class="small">Sign-in · access tokens · user provisioning</text>
+
+  <path d="M250 168 H310" class="line"/>
+  <path d="M590 168 H650" class="line"/>
+  <path d="M885 168 H945" class="line"/>
+  <path d="M250 194 C560 255 1050 255 1350 194" class="dashed"/>
+  <text x="800" y="246" text-anchor="middle" class="tiny">OIDC sign-in / callback</text>
+
+  <!-- Cloud and Kubernetes boundary -->
+  <rect x="60" y="285" width="1680" height="560" rx="22" fill="#fbfdff" stroke="#8da2b3" stroke-width="2"/>
+  <text x="88" y="320" class="section">Cloud environment</text>
+  <rect x="90" y="340" width="1300" height="475" rx="18" fill="#f4f9fd" stroke="#4386b2" stroke-width="2.5"/>
+  <text x="118" y="374" class="section">Kubernetes cluster · banking namespace</text>
+
+  <rect x="120" y="405" width="235" height="100" class="node workload"/>
+  <text x="237" y="442" text-anchor="middle" class="label">Banking frontend</text>
+  <text x="237" y="468" text-anchor="middle" class="small">React / Nginx</text>
+  <text x="237" y="489" text-anchor="middle" class="tiny">Customer web experience</text>
+
+  <rect x="395" y="405" width="220" height="100" class="node workload"/>
+  <text x="505" y="442" text-anchor="middle" class="label">User service</text>
+  <text x="505" y="468" text-anchor="middle" class="small">FastAPI · profiles</text>
+  <text x="505" y="489" text-anchor="middle" class="tiny">Provision identity with Keycloak</text>
+
+  <rect x="650" y="405" width="220" height="100" class="node workload"/>
+  <text x="760" y="442" text-anchor="middle" class="label">Transaction service</text>
+  <text x="760" y="468" text-anchor="middle" class="small">Spring Boot · banking APIs</text>
+  <text x="760" y="489" text-anchor="middle" class="tiny">Transfers · balances · transactions</text>
+
+  <rect x="905" y="405" width="210" height="100" class="node workload"/>
+  <text x="1010" y="442" text-anchor="middle" class="label">Activity service</text>
+  <text x="1010" y="468" text-anchor="middle" class="small">FastAPI · event consumer</text>
+  <text x="1010" y="489" text-anchor="middle" class="tiny">Customer activity history</text>
+
+  <rect x="1150" y="405" width="210" height="100" class="node workload"/>
+  <text x="1255" y="442" text-anchor="middle" class="label">FinanceAgent</text>
+  <text x="1255" y="468" text-anchor="middle" class="small">FastAPI · read-only AI</text>
+  <text x="1255" y="489" text-anchor="middle" class="tiny">Authenticated banking queries</text>
+
+  <path d="M1070 211 V270 H237 V399" class="line"/>
+  <path d="M355 455 H389" class="line"/>
+  <path d="M355 470 C455 530 650 530 650 475" class="line"/>
+  <path d="M355 485 C535 555 1010 555 1010 475" class="line"/>
+  <path d="M355 495 C600 580 1255 580 1255 475" class="line"/>
+  <path d="M1150 455 H876" class="line"/>
+  <text x="1010" y="548" text-anchor="middle" class="tiny">REST API · Istio mTLS</text>
+
+  <!-- Istio mesh boundary -->
+  <rect x="110" y="570" width="1270" height="78" rx="14" fill="#f2edff" fill-opacity="0.7" stroke="#8064b0" stroke-width="2" stroke-dasharray="9 6"/>
+  <text x="135" y="600" class="label">Istio service mesh</text>
+  <text x="135" y="625" class="small">Sidecar proxies · strict mTLS · service identity · traffic policy · explicit authorization</text>
+  <text x="1050" y="612" class="tiny">Mesh controls complement API token / role / ownership checks.</text>
+
+  <!-- Data services -->
+  <rect x="120" y="680" width="360" height="102" class="node database"/>
+  <text x="300" y="717" text-anchor="middle" class="label">Managed PostgreSQL</text>
+  <text x="300" y="744" text-anchor="middle" class="small">Profiles · accounts · transactions · activity</text>
+  <text x="300" y="766" text-anchor="middle" class="tiny">Backups · encryption · recovery</text>
+
+  <rect x="520" y="680" width="250" height="102" class="node database"/>
+  <text x="645" y="717" text-anchor="middle" class="label">Managed Redis</text>
+  <text x="645" y="746" text-anchor="middle" class="small">Transaction cache</text>
+
+  <rect x="810" y="680" width="330" height="102" class="node database"/>
+  <text x="975" y="717" text-anchor="middle" class="label">Managed Kafka</text>
+  <text x="975" y="746" text-anchor="middle" class="small">Transaction events → activity service</text>
+
+  <path d="M505 505 V660 H300 V674" class="line"/>
+  <path d="M760 505 V655 H400 V674" class="line"/>
+  <path d="M760 505 V674" class="line"/>
+  <path d="M760 505 V660 H645 V674" class="line"/>
+  <path d="M760 505 V655 H975 V674" class="line"/>
+  <path d="M975 680 V660 H1010 V511" class="line"/>
+  <text x="1150" y="714" class="tiny">Persist sensitive data in</text>
+  <text x="1150" y="734" class="tiny">managed / secured services.</text>
+
+  <!-- Datadog operations -->
+  <rect x="1430" y="340" width="280" height="225" class="node observe"/>
+  <text x="1570" y="380" text-anchor="middle" class="label">Datadog</text>
+  <text x="1570" y="408" text-anchor="middle" class="small">Agent + Cluster Agent</text>
+  <text x="1455" y="447" class="small">• Infrastructure / Kubernetes</text>
+  <text x="1455" y="475" class="small">• Application logs and metrics</text>
+  <text x="1455" y="503" class="small">• APM traces · dashboards</text>
+  <text x="1455" y="531" class="small">• Monitors · SLOs · alerting</text>
+
+  <rect x="1430" y="605" width="280" height="150" class="node observe"/>
+  <text x="1570" y="646" text-anchor="middle" class="label">Security guardrails</text>
+  <text x="1455" y="680" class="small">Cloudflare WAF / rate limits</text>
+  <text x="1455" y="706" class="small">Istio mTLS / authorization</text>
+  <text x="1455" y="732" class="small">API token / role enforcement</text>
+
+  <path d="M1360 455 H1424" class="telemetry"/>
+  <text x="1392" y="438" text-anchor="middle" class="tiny">telemetry</text>
+
+  <!-- Delivery workflow -->
+  <text x="60" y="895" class="section">Developer platform and delivery</text>
+  <text x="60" y="922" class="subtitle">Backstage is the developer portal; CI builds and scans, while GitOps reconciles approved deployment configuration.</text>
+
+  <rect x="60" y="955" width="235" height="115" class="node platform"/>
+  <text x="177" y="992" text-anchor="middle" class="label">Engineering team</text>
+  <text x="177" y="1021" text-anchor="middle" class="small">Own · build · review</text>
+
+  <rect x="345" y="955" width="260" height="115" class="node platform"/>
+  <text x="475" y="992" text-anchor="middle" class="label">Backstage</text>
+  <text x="475" y="1021" text-anchor="middle" class="small">Catalog · templates · ownership</text>
+  <text x="475" y="1045" text-anchor="middle" class="tiny">Docs · service portal</text>
+
+  <rect x="655" y="955" width="245" height="115" class="node platform"/>
+  <text x="777" y="992" text-anchor="middle" class="label">Git repository</text>
+  <text x="777" y="1021" text-anchor="middle" class="small">Source · deployment config</text>
+
+  <rect x="950" y="955" width="265" height="115" class="node platform"/>
+  <text x="1082" y="992" text-anchor="middle" class="label">GitHub Actions</text>
+  <text x="1082" y="1021" text-anchor="middle" class="small">Test · build · security scan</text>
+  <text x="1082" y="1045" text-anchor="middle" class="tiny">Publish immutable image</text>
+
+  <rect x="1265" y="955" width="225" height="115" class="node platform"/>
+  <text x="1377" y="992" text-anchor="middle" class="label">OCI registry</text>
+  <text x="1377" y="1021" text-anchor="middle" class="small">Versioned images</text>
+
+  <rect x="1540" y="955" width="200" height="115" class="node platform"/>
+  <text x="1640" y="992" text-anchor="middle" class="label">Argo CD</text>
+  <text x="1640" y="1021" text-anchor="middle" class="small">GitOps sync</text>
+
+  <path d="M295 1012 H339" class="line"/>
+  <path d="M605 1012 H649" class="line"/>
+  <path d="M900 1012 H944" class="line"/>
+  <path d="M1215 1012 H1259" class="line"/>
+  <path d="M900 1048 C1110 1110 1530 1110 1620 1076" class="dashed"/>
+  <path d="M1490 1012 H1534" class="dashed"/>
+  <path d="M1640 955 V875 H1240 V820" class="dashed"/>
+  <text x="1350" y="868" text-anchor="middle" class="tiny">deploy reviewed workloads to Kubernetes</text>
+
+  <text x="60" y="1140" class="tiny">Current repository state: Docker Compose is the primary local deployment; production security controls and platform integrations require implementation and validation.</text>
+</svg>

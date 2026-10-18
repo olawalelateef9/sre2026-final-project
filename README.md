@@ -6,6 +6,7 @@ A proof-of-concept digital banking platform with a React customer experience and
 
 - `techbleat-global-bank-frontend/` — React/Vite sign-in, registration, dashboard, transfers, and reports.
 - `techbleat-global-bank-backend/` — FastAPI user and activity services, Spring Boot transaction service, database setup, and Docker Compose configuration.
+- [`docs/architecture.md`](./docs/architecture.md) — target architecture for Cloudflare, Backstage, Kubernetes/Istio, and Datadog.
 
 ## Visual Overview
 
