@@ -5,11 +5,13 @@ import com.techbleat.bank.model.BankTransaction;
 import com.techbleat.bank.repo.AccountRepository;
 import com.techbleat.bank.repo.BankTransactionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import redis.clients.jedis.Jedis;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -35,12 +37,17 @@ public class TransactionService {
     @Autowired
     private KafkaTemplate<String, Object> kafkaTemplate;
 
-    private final String redisHost = System.getenv().getOrDefault("REDIS_HOST", "redis");
-    private final int redisPort = Integer.parseInt(System.getenv().getOrDefault("REDIS_PORT", "6379"));
+    @Value("${REDIS_HOST:redis}")
+    private String redisHost;
 
+    @Value("${REDIS_PORT:6379}")
+    private int redisPort;
+
+    // Writes run in one database transaction: if the Kafka publish fails, the balance change rolls back.
+    @Transactional
     public Map<String, Object> deposit(String userId, Double amount) {
         validateAmount(amount);
-        Account account = getAccount(userId);
+        Account account = getAccountForUpdate(userId);
 
         account.setBalance(account.getBalance() + amount);
         accountRepository.save(account);
@@ -52,12 +59,13 @@ public class TransactionService {
         return Map.of("message", "Deposit successful", "balance", account.getBalance());
     }
 
+    @Transactional
     public Map<String, Object> withdraw(String userId, Double amount) {
         validateAmount(amount);
-        Account account = getAccount(userId);
+        Account account = getAccountForUpdate(userId);
 
         if (account.getBalance() < amount) {
-            throw new RuntimeException("Insufficient funds");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Insufficient funds");
         }
 
         account.setBalance(account.getBalance() - amount);
@@ -70,14 +78,25 @@ public class TransactionService {
         return Map.of("message", "Withdrawal successful", "balance", account.getBalance());
     }
 
+    @Transactional
     public Map<String, Object> transfer(String fromUserId, String toUserId, Double amount, String reference) {
         validateAmount(amount);
+        if (toUserId == null || toUserId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Destination account is required");
+        }
+        if (toUserId.equals(fromUserId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot transfer to the same account");
+        }
 
-        Account fromAccount = getAccount(fromUserId);
-        Account toAccount = getAccount(toUserId);
+        // Lock both rows in a fixed order so concurrent opposite transfers cannot deadlock.
+        boolean fromFirst = fromUserId.compareTo(toUserId) < 0;
+        Account first = getAccountForUpdate(fromFirst ? fromUserId : toUserId);
+        Account second = getAccountForUpdate(fromFirst ? toUserId : fromUserId);
+        Account fromAccount = fromFirst ? first : second;
+        Account toAccount = fromFirst ? second : first;
 
         if (fromAccount.getBalance() < amount) {
-            throw new RuntimeException("Insufficient funds");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Insufficient funds");
         }
 
         fromAccount.setBalance(fromAccount.getBalance() - amount);
@@ -95,10 +114,10 @@ public class TransactionService {
         cacheBalance(fromUserId, fromAccount.getBalance());
         cacheBalance(toUserId, toAccount.getBalance());
 
+        // The recipient's balance is not returned: it is another customer's data.
         return Map.of(
                 "message", "Transfer successful",
-                "fromBalance", fromAccount.getBalance(),
-                "toBalance", toAccount.getBalance()
+                "fromBalance", fromAccount.getBalance()
         );
     }
 
@@ -125,9 +144,14 @@ public class TransactionService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
     }
 
+    private Account getAccountForUpdate(String userId) {
+        return accountRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
+    }
+
     private void validateAmount(Double amount) {
-        if (amount == null || amount <= 0) {
-            throw new RuntimeException("Amount must be greater than zero");
+        if (amount == null || amount.isNaN() || amount.isInfinite() || amount <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Amount must be greater than zero");
         }
     }
 
@@ -155,11 +179,11 @@ public class TransactionService {
                 userId, eventType, amount);
         } catch (java.util.concurrent.TimeoutException ex) {
             logger.error("Kafka send timeout - User: {}, Type: {}, Amount: {}", userId, eventType, amount, ex);
-            throw new RuntimeException("Kafka event publishing timeout", ex);
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Transaction could not be recorded", ex);
         } catch (Exception ex) {
             logger.error("Failed to publish Kafka event - User: {}, Type: {}, Amount: {}, Error: {}", 
                 userId, eventType, amount, ex.getMessage(), ex);
-            throw new RuntimeException("Kafka event publishing failed: " + ex.getMessage(), ex);
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Transaction could not be recorded", ex);
         }
     }
 

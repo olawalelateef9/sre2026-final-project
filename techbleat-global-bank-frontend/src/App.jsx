@@ -237,13 +237,11 @@ export default function TechbleatGlobalBankCustomerApp() {
       if (transferForm.type === "deposit") {
         await api(`${TX_API}/transactions/deposit`, {
           method: "POST",
-          headers: { "X-User-Id": selectedUserId, "Content-Type": "application/json" },
           body: JSON.stringify({ amount }),
         });
       } else if (transferForm.type === "withdraw") {
         await api(`${TX_API}/transactions/withdraw`, {
           method: "POST",
-          headers: { "X-User-Id": selectedUserId, "Content-Type": "application/json" },
           body: JSON.stringify({ amount }),
         });
       } else {
@@ -253,7 +251,6 @@ export default function TechbleatGlobalBankCustomerApp() {
         }
         await api(`${TX_API}/transactions/transfer`, {
           method: "POST",
-          headers: { "X-User-Id": selectedUserId, "Content-Type": "application/json" },
           body: JSON.stringify({
             toUserId: transferForm.toUserId.trim(),
             amount,

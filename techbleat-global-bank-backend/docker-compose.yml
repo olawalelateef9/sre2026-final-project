@@ -71,6 +71,9 @@ services:
       REDIS_PORT: 6379
       SERVER_PORT: 8080
       FRONTEND_ORIGIN: http://localhost:3000
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://localhost:8080/realms/banking}
+      KEYCLOAK_JWK_SET_URI: ${KEYCLOAK_URL:-http://host.docker.internal:8080}/realms/${KEYCLOAK_REALM:-banking}/protocol/openid-connect/certs
+      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-banking-api}
     ports:
       - "8090:8080"
 
@@ -95,7 +98,7 @@ services:
       KEYCLOAK_URL: ${KEYCLOAK_URL:-http://host.docker.internal:8080}
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://localhost:8080/realms/banking}
       KEYCLOAK_REALM: ${KEYCLOAK_REALM:-banking}
-      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-account}
+      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-banking-api}
       TRANSACTION_API_URL: http://transaction-service:8080
     depends_on:
       - transaction-service

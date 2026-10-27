@@ -12,7 +12,8 @@ do not return mock customer data.
 The service verifies the token signature using the configured Keycloak realm
 JWKS and checks the issuer and audience against configuration. In Docker Compose,
 the defaults match the local banking realm token (`http://localhost:8080/realms/banking`,
-audience `account`); `KEYCLOAK_URL` uses `host.docker.internal` so the container
+audience `banking-api`, shared with the transaction service, which receives the
+forwarded token); `KEYCLOAK_URL` uses `host.docker.internal` so the container
 can fetch JWKS from Keycloak running on the host. Override `KEYCLOAK_ISSUER` and
 `KEYCLOAK_AUDIENCE` if your access tokens use different claims. `/health` is
 public.

@@ -8,7 +8,7 @@ Environment variables:
 - KEYCLOAK_URL (Keycloak URL reachable from this service)
 - KEYCLOAK_ISSUER (issuer URL present in access tokens)
 - KEYCLOAK_REALM (e.g., banking)
-- KEYCLOAK_AUDIENCE (e.g., account)
+- KEYCLOAK_AUDIENCE (e.g., banking-api)
 """
 from __future__ import annotations
 import os
@@ -52,7 +52,7 @@ def _jwks_uri() -> str:
 
 @lru_cache(maxsize=1)
 def _audience() -> str:
-    return _get_env("KEYCLOAK_AUDIENCE", "account")
+    return _get_env("KEYCLOAK_AUDIENCE", "banking-api")
 
 
 @lru_cache(maxsize=1)
