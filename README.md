@@ -65,16 +65,24 @@ Vite serves the frontend at `http://localhost:3000` and proxies `/user-api`, `/t
 
 ## Keycloak Configuration
 
-Use the `banking` realm and configure these clients:
+The `banking` realm is defined in [`keycloak/banking-realm.json`](./keycloak/banking-realm.json) and applied with a script that is safe to rerun. It needs only Python 3.9+ and prompts for the Keycloak admin password:
 
-- `banking-frontend`: public OpenID Connect client; client authentication off, standard flow on, PKCE method `S256`. Add the frontend origin and trailing-slash redirect URI to the client’s allowed origins and redirect URIs.
-- `banking-api` audience: banking APIs only accept access tokens whose `aud` claim contains `banking-api`. On the `banking-frontend` client, open **Client scopes → banking-frontend-dedicated → Add mapper → By configuration → Audience**, set **Included Custom Audience** to `banking-api`, and enable **Add to access token**. Override with `KEYCLOAK_AUDIENCE` if you use a different value.
-- Realm settings: keep **Edit username** off. The APIs identify the bank account by the token's `preferred_username`, so users must not be able to change it.
-- `banking-provisioner`: confidential backend client with service accounts enabled. Assign its service account the `realm-management` → `manage-users` client role. Keep its client secret in the backend environment only; never put it in frontend variables.
+```sh
+python keycloak/configure_realm.py --dry-run
+python keycloak/configure_realm.py --env-file techbleat-global-bank-backend/.env
+```
+
+The second command writes the `banking-provisioner` client secret into the git-ignored backend `.env` without printing it. Set `KEYCLOAK_URL` if Keycloak is not at `http://localhost:8080`; for a deployed environment set `FRONTEND_URL=https://<your-domain>` and `KEYCLOAK_SSL_REQUIRED=all`. See [`keycloak/README.md`](./keycloak/README.md) for what the script configures.
+
+In summary:
+
+- `banking-frontend`: public client using Authorization Code with PKCE (`S256`) only; redirect URI, web origin, and post-logout URI are the exact `FRONTEND_URL`. Its access tokens carry the `banking-api` audience and only the three banking realm roles.
+- `banking-provisioner`: confidential client whose service account holds only `realm-management` → `manage-users`. Keep its secret in the backend environment only; never put it in frontend variables.
+- Realm: 12-character password policy, brute-force lockout, 5-minute access tokens, and **Edit username** off. The APIs identify the bank account by the token's `preferred_username`, so users must not be able to change it.
 
 The app registration form collects a user ID, name, email, and password. The user service provisions the Keycloak identity, bank profile, and zero-balance account. The initial password is temporary, so Keycloak requires a password change at first sign-in. User IDs are stored in lowercase to match Keycloak usernames. Passwords must be at least 12 characters; Keycloak realm password policy may impose additional requirements.
 
-An administrator must assign `banking-customer` after registration before the user can access banking. `banking-transact` additionally enables deposits, withdrawals, and transfers. Assign `banking-ai-agent` to users who should see and use the AI Assistant. The frontend accepts these as realm roles or as roles assigned to the `banking-frontend` client. The transaction service enforces `banking-customer` (read) and `banking-transact` (write) server-side. The `banking-ai-agent` role currently gates the frontend UI only; the FinanceAgent API still relies on token validation and has no role check.
+An administrator must assign `banking-customer` after registration before the user can access banking. `banking-transact` additionally enables deposits, withdrawals, and transfers. Assign `banking-ai-agent` to users who should see and use the AI Assistant. Assign them as realm roles. The transaction service enforces `banking-customer` (read) and `banking-transact` (write) server-side. The `banking-ai-agent` role currently gates the frontend UI only; the FinanceAgent API still relies on token validation and has no role check.
 
 ## API Overview
 

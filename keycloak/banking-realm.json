@@ -1,0 +1,96 @@
+{
+  "realm": {
+    "realm": "banking",
+    "displayName": "Techbleat Global Bank",
+    "enabled": true,
+    "sslRequired": "${KEYCLOAK_SSL_REQUIRED}",
+    "registrationAllowed": false,
+    "editUsernameAllowed": false,
+    "loginWithEmailAllowed": true,
+    "duplicateEmailsAllowed": false,
+    "resetPasswordAllowed": true,
+    "verifyEmail": "${KEYCLOAK_VERIFY_EMAIL}",
+    "passwordPolicy": "length(12) and maxLength(128) and notUsername and notEmail and passwordHistory(3)",
+    "bruteForceProtected": true,
+    "permanentLockout": false,
+    "failureFactor": 5,
+    "waitIncrementSeconds": 60,
+    "maxFailureWaitSeconds": 900,
+    "maxDeltaTimeSeconds": 43200,
+    "quickLoginCheckMilliSeconds": 1000,
+    "minimumQuickLoginWaitSeconds": 60,
+    "accessTokenLifespan": 300,
+    "ssoSessionIdleTimeout": 1800,
+    "ssoSessionMaxLifespan": 28800,
+    "revokeRefreshToken": true,
+    "refreshTokenMaxReuse": 0,
+    "eventsEnabled": true,
+    "eventsExpiration": 2592000,
+    "adminEventsEnabled": true,
+    "adminEventsDetailsEnabled": false
+  },
+
+  "roles": [
+    {"name": "banking-customer", "description": "View own profile, balance, transactions and activity."},
+    {"name": "banking-transact", "description": "Deposit, withdraw and transfer from own account. Requires banking-customer."},
+    {"name": "banking-ai-agent", "description": "Use the FinanceAgent assistant. Requires banking-customer."}
+  ],
+
+  "clients": [
+    {
+      "clientId": "banking-frontend",
+      "name": "Techbleat Global Bank web app",
+      "description": "Public browser client: Authorization Code with PKCE (S256) only.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "fullScopeAllowed": false,
+      "rootUrl": "${FRONTEND_URL}",
+      "baseUrl": "/",
+      "redirectUris": ["${FRONTEND_URL}/"],
+      "webOrigins": ["${FRONTEND_URL}"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "${FRONTEND_URL}##${FRONTEND_URL}/"
+      },
+      "realmRoleScope": ["banking-customer", "banking-transact", "banking-ai-agent"],
+      "protocolMappers": [
+        {
+          "name": "banking-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "banking-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "banking-provisioner",
+      "name": "User service provisioning",
+      "description": "Confidential client used by the user service to create Keycloak users at registration.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "realmRoleScope": [],
+      "clientRoleScope": {"realm-management": ["manage-users"]},
+      "serviceAccountClientRoles": {"realm-management": ["manage-users"]}
+    }
+  ]
+}
