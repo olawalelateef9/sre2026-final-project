@@ -82,7 +82,7 @@ In summary:
 
 The app registration form collects a user ID, name, email, and password. The user service provisions the Keycloak identity, bank profile, and zero-balance account. The initial password is temporary, so Keycloak requires a password change at first sign-in. User IDs are stored in lowercase to match Keycloak usernames. Passwords must be at least 12 characters; Keycloak realm password policy may impose additional requirements.
 
-An administrator must assign `banking-customer` after registration before the user can access banking. `banking-transact` additionally enables deposits, withdrawals, and transfers. Assign `banking-ai-agent` to users who should see and use the AI Assistant. Assign them as realm roles. The transaction service enforces `banking-customer` (read) and `banking-transact` (write) server-side. The `banking-ai-agent` role currently gates the frontend UI only; the FinanceAgent API still relies on token validation and has no role check.
+An administrator must assign `banking-customer` after registration before the user can access banking. `banking-transact` additionally enables deposits, withdrawals, and transfers. Assign `banking-ai-agent` to users who should see and use the AI Assistant. Assign them as realm roles. The transaction service enforces `banking-customer` (read) and `banking-transact` (write) server-side. FinanceAgent requires both `banking-customer` and `banking-ai-agent` at its API.
 
 ## API Overview
 

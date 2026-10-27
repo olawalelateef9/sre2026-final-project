@@ -15,8 +15,36 @@ the defaults match the local banking realm token (`http://localhost:8080/realms/
 audience `banking-api`, shared with the transaction service, which receives the
 forwarded token); `KEYCLOAK_URL` uses `host.docker.internal` so the container
 can fetch JWKS from Keycloak running on the host. Override `KEYCLOAK_ISSUER` and
-`KEYCLOAK_AUDIENCE` if your access tokens use different claims. `/health` is
-public.
+`KEYCLOAK_AUDIENCE` if your access tokens use different claims. Signing keys are
+cached and refetched when Keycloak rotates them. `/health` is public.
+
+`/me` and `/chat` also require the `banking-customer` and `banking-ai-agent`
+roles (override with `FINANCE_AGENT_REQUIRED_ROLES`); other signed-in users get
+`403`. `/chat` is limited to 10 questions per user per minute
+(`FINANCE_AGENT_RATE_LIMIT_PER_MINUTE`); the limit is held in memory, so each
+replica counts separately. Authentication failures and denials are logged under
+`security.audit` without the token.
+
+## AI data handling
+
+- **Read-only tools.** The model can call only `get_balance` and
+  `get_recent_transactions`. Both act on the user in the verified token, and the
+  transaction service checks ownership again. The agent cannot move money.
+- **Data minimisation.** The model sees the balance and, for each of the 20 most
+  recent transactions, only its type, signed amount and date. Transfer
+  references are withheld. They are free text written by whoever sends the
+  money, so they could carry a prompt injection, and they can name other
+  customers.
+- **Prompt injection.** The system prompt treats tool results and the
+  customer's message as data. The model has no tool that could act on an
+  injected instruction beyond the caller's own read-only data.
+- **Retention.** Requests use `store=False`, so OpenAI does not keep responses
+  for later retrieval. By default, OpenAI does not use API data for training,
+  but it may keep it for up to 30 days for abuse monitoring. Use an
+  organisation with zero data retention if that is not acceptable.
+- **Logging.** The service logs the user ID and tool names for each chat. It
+  never logs the question, the answer or tool data.
+- **Rendering.** The frontend renders answers as text, never HTML.
 
 ## Start (macOS / Linux)
 
@@ -75,10 +103,9 @@ after a previous question does not retain that question's context.
 ## Next step: your Banking app
 
 The agent calls the balance and transaction endpoints using the identity in
-the verified token. Do not let model-supplied data select a customer. The
-transaction service should also validate bearer tokens and enforce account
-ownership before being exposed beyond this trusted local Compose network. This
-agent has no transfer or payment capability.
+the verified token and forwards that token. The transaction service validates it
+again and enforces account ownership. Do not let model-supplied data select a
+customer. This agent has no transfer or payment capability.
 
 ## Verify without API charges
 

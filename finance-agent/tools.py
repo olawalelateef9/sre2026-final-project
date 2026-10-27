@@ -12,6 +12,31 @@ from fastapi import HTTPException, status
 from auth import user_from_token
 
 
+MAX_TRANSACTIONS = 20
+OUTGOING_TYPES = {"WITHDRAW", "TRANSFER_OUT"}
+
+
+def _model_safe_transaction(tx: Any) -> Dict[str, Any]:
+    """Keeps only type, signed amount and date.
+
+    References are free text that other customers can write (a transfer's
+    reference reaches the recipient), so they are a prompt-injection channel and
+    may name other customers; account and record IDs are not needed either.
+    """
+    if not isinstance(tx, dict):
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail="Transaction API returned invalid transactions")
+    tx_type = str(tx.get("transactionType", "UNKNOWN"))
+    try:
+        amount = Decimal(str(tx.get("amount")))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail="Transaction API returned an invalid amount") from exc
+    if tx_type in OUTGOING_TYPES:
+        amount = -abs(amount)
+    return {"type": tx_type, "amount": f"{amount:.2f}", "date": str(tx.get("createdAt", ""))[:10]}
+
+
 def _tx_base() -> str:
     return os.getenv("TRANSACTION_API_URL", "").rstrip("/")
 
@@ -78,7 +103,8 @@ def get_toolkit(context: Dict[str, Any] | None = None) -> Tuple[Dict[str, Callab
         if not isinstance(transactions, list):
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
                                 detail="Transaction API returned invalid transactions")
-        return {"currency": "GBP", "mock": False, "transactions": transactions}
+        recent = [_model_safe_transaction(tx) for tx in transactions[:MAX_TRANSACTIONS]]
+        return {"currency": "GBP", "mock": False, "transactions": recent}
 
     tool_functions: Dict[str, Callable[..., Any]] = {
         "get_balance": get_balance,
@@ -91,7 +117,7 @@ def get_toolkit(context: Dict[str, Any] | None = None) -> Tuple[Dict[str, Callab
          "strict": True}
         for name, description in [
             ("get_balance", "Get the authenticated user's current account balance in GBP."),
-            ("get_recent_transactions", "Get the authenticated user's recent transactions. Negative amounts are spending."),
+            ("get_recent_transactions", "Get the authenticated user's 20 most recent transactions (type, amount, date). Negative amounts are money leaving the account."),
         ]
     ]
 

@@ -3,7 +3,7 @@ from types import SimpleNamespace as NS
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 from agent import run_agent
-from main import app
+from main import RateLimiter, app
 from auth import fake_user, require_user
 
 class FakeClient:
@@ -56,6 +56,30 @@ class AgentTests(unittest.TestCase):
                 self.assertEqual(web.post("/chat", json={"message": "Balance?"}).json()["answer"], "Demo")
             # /me returns user id from override
             self.assertEqual(web.get("/me").json()["user_id"], "test-uid")
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_health_does_not_claim_mock_data(self):
+        self.assertEqual(TestClient(app).get("/health").json(), {"status": "ok"})
+
+    def test_users_without_assistant_role_are_forbidden(self):
+        web = TestClient(app)
+        app.dependency_overrides[require_user] = lambda: fake_user("no-ai", roles=("banking-customer",))
+        try:
+            with patch("main.run_agent") as agent:
+                self.assertEqual(web.post("/chat", json={"message": "Balance?"}).status_code, 403)
+                self.assertEqual(web.get("/me").status_code, 403)
+            agent.assert_not_called()
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_chat_is_rate_limited_per_user(self):
+        web = TestClient(app)
+        app.dependency_overrides[require_user] = lambda: fake_user("busy-user")
+        try:
+            with patch("main.chat_limiter", RateLimiter(2, 60)),                     patch("main.run_agent", return_value={"answer": "ok", "tool_calls": [], "mock_data": False}):
+                codes = [web.post("/chat", json={"message": "Balance?"}).status_code for _ in range(3)]
+            self.assertEqual(codes, [200, 200, 429])
         finally:
             app.dependency_overrides.clear()
 

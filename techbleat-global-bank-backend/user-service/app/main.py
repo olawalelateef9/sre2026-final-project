@@ -11,6 +11,8 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from app.auth import Caller, require_roles
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+# httpx logs every Keycloak admin URL at INFO; keep only problems.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
