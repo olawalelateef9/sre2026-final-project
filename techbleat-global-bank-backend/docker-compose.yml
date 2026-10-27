@@ -55,6 +55,9 @@ services:
       KEYCLOAK_REALM: ${KEYCLOAK_REALM:-banking}
       KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:-banking-provisioner}
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-}
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://localhost:8080/realms/banking}
+      KEYCLOAK_JWK_SET_URI: ${KEYCLOAK_URL:-http://host.docker.internal:8080}/realms/${KEYCLOAK_REALM:-banking}/protocol/openid-connect/certs
+      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-banking-api}
     ports:
       - "8000:8000"
 
@@ -84,6 +87,9 @@ services:
       DATABASE_URL: postgresql://bankuser:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in techbleat-global-bank-backend/.env}@postgres:5432/bankingdb
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       FRONTEND_ORIGIN: http://localhost:3000
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://localhost:8080/realms/banking}
+      KEYCLOAK_JWK_SET_URI: ${KEYCLOAK_URL:-http://host.docker.internal:8080}/realms/${KEYCLOAK_REALM:-banking}/protocol/openid-connect/certs
+      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-banking-api}
     ports:
       - "8001:8001"
 

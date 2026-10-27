@@ -72,7 +72,7 @@ Use the `banking` realm and configure these clients:
 - Realm settings: keep **Edit username** off. The APIs identify the bank account by the token's `preferred_username`, so users must not be able to change it.
 - `banking-provisioner`: confidential backend client with service accounts enabled. Assign its service account the `realm-management` → `manage-users` client role. Keep its client secret in the backend environment only; never put it in frontend variables.
 
-The app registration form collects a user ID, name, email, and password. The user service provisions the Keycloak identity, bank profile, and zero-balance account. The initial password is temporary, so Keycloak requires a password change at first sign-in. The app currently accepts passwords of at least three characters; Keycloak realm password policy may impose additional requirements.
+The app registration form collects a user ID, name, email, and password. The user service provisions the Keycloak identity, bank profile, and zero-balance account. The initial password is temporary, so Keycloak requires a password change at first sign-in. User IDs are stored in lowercase to match Keycloak usernames. Passwords must be at least 12 characters; Keycloak realm password policy may impose additional requirements.
 
 An administrator must assign `banking-customer` after registration before the user can access banking. `banking-transact` additionally enables deposits, withdrawals, and transfers. Assign `banking-ai-agent` to users who should see and use the AI Assistant. The frontend accepts these as realm roles or as roles assigned to the `banking-frontend` client. The transaction service enforces `banking-customer` (read) and `banking-transact` (write) server-side. The `banking-ai-agent` role currently gates the frontend UI only; the FinanceAgent API still relies on token validation and has no role check.
 
@@ -80,15 +80,15 @@ An administrator must assign `banking-customer` after registration before the us
 
 | Service | Base URL | Main endpoints |
 | --- | --- | --- |
-| User | `http://localhost:8000` | `GET /health`, `GET /users`, `POST /users` |
+| User | `http://localhost:8000` | `GET /health`, `GET /users/me`, `POST /users` |
 | Transaction | `http://localhost:8090` | `GET /health`, `GET /balance/{userId}`, `GET /transactions/{userId}`, `POST /transactions/deposit`, `POST /transactions/withdraw`, `POST /transactions/transfer` |
 | Activity | `http://localhost:8001` | `GET /health`, `GET /activities/{userId}` |
 
-Registration uses `POST /users` with `id`, `full_name`, `email`, and `password`. Transaction service endpoints except `/health` require a bearer token. They act on the token's `preferred_username`; a `{userId}` path value or `X-User-Id` header that names a different user is rejected with `403`.
+Registration uses `POST /users` with `id`, `full_name`, `email`, and `password`, and is the only unauthenticated endpoint besides `/health`. All other endpoints require a bearer token with the `banking-api` audience and the `banking-customer` role; transaction writes also require `banking-transact`. Each API acts on the token's `preferred_username`: `GET /users/me` returns only the caller's profile, and a `{userId}` path value or `X-User-Id` header that names a different user is rejected with `403`.
 
 ## Security Notes
 
-- This is a proof of concept. The transaction service validates bearer-token signature, issuer, audience, expiry, roles, and account ownership; authentication failures and denials are logged under `security.audit` without the token. The user and activity services do not yet validate tokens: `GET /users` and `GET /activities/{userId}` remain open. Frontend role checks are not server-side authorization.
+- This is a proof of concept. The user, transaction, and activity services validate bearer-token signature, issuer, audience, expiry, roles, and account ownership; authentication failures and denials are logged under `security.audit` without the token. Frontend role checks are not server-side authorization.
 - Email verification and signup rate limiting are not currently implemented.
-- The three-character minimum password is for development only and is not appropriate for real accounts.
+- Run the security tests with `mvn test` in `transaction-service`, and with `pip install -r requirements.txt -r requirements-dev.txt && python -m pytest tests` in `user-service` and `activity-service`.
 - Never commit `.env` files, Keycloak client secrets, or secret manifests.

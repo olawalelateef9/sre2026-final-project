@@ -176,26 +176,14 @@ export default function TechbleatGlobalBankCustomerApp() {
 
   async function loadUsers() {
     try {
-      const data = await api(`${USER_API}/users`);
-      const bankUsers = Array.isArray(data) ? data : [];
-      setUsers(bankUsers);
-      const userName = identity?.preferred_username;
-      const email = identity?.email?.toLowerCase();
-      const account = bankUsers.find(
-        (user) => user.id === userName || user.email?.toLowerCase() === email,
-      );
-      if (account) {
-        setSelectedUserId(account.id);
-        setScreen("dashboard");
-        setMessage({ type: "success", text: `Signed in as ${account.full_name}` });
-      } else {
-        setMessage({
-          type: "error",
-          text: "No bank profile matches your Keycloak username or email. Ask an administrator to link your account.",
-        });
-      }
+      // The API returns only the signed-in user's profile, matched to the token's username.
+      const account = await api(`${USER_API}/users/me`);
+      setUsers([account]);
+      setSelectedUserId(account.id);
+      setScreen("dashboard");
+      setMessage({ type: "success", text: `Signed in as ${account.full_name}` });
     } catch (error) {
-      setMessage({ type: "error", text: error.message || "Unable to load users" });
+      setMessage({ type: "error", text: error.message || "Unable to load your bank profile" });
     } finally {
       setUsersLoaded(true);
     }
@@ -271,6 +259,10 @@ export default function TechbleatGlobalBankCustomerApp() {
     event.preventDefault();
     if (registerForm.password !== registerForm.confirmPassword) {
       setMessage({ type: "error", text: "Passwords do not match." });
+      return;
+    }
+    if (registerForm.password.length < 12) {
+      setMessage({ type: "error", text: "Password must be at least 12 characters." });
       return;
     }
 
@@ -431,7 +423,6 @@ export default function TechbleatGlobalBankCustomerApp() {
             transferForm={transferForm}
             setTransferForm={setTransferForm}
             onSubmit={handleTransfer}
-            users={users}
             balance={balance}
           />
         )}
@@ -1078,7 +1069,7 @@ function DashboardScreen({
   );
 }
 
-function TransferScreen({ selectedUser, transferForm, setTransferForm, onSubmit, users, balance }) {
+function TransferScreen({ selectedUser, transferForm, setTransferForm, onSubmit, balance }) {
   const transferModes = [
     { id: "deposit", label: "Deposit" },
     { id: "withdraw", label: "Withdraw" },
@@ -1128,19 +1119,14 @@ function TransferScreen({ selectedUser, transferForm, setTransferForm, onSubmit,
 
         {transferForm.type === "transfer" ? (
           <div>
-            <label className="mb-2 block text-sm text-slate-300">Destination user</label>
-            <select
+            <label className="mb-2 block text-sm text-slate-300">Recipient user ID</label>
+            <input
               value={transferForm.toUserId}
               onChange={(event) => setTransferForm((prev) => ({ ...prev, toUserId: event.target.value }))}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-white outline-none"
-            >
-              <option value="">Select a beneficiary</option>
-              {users
-                .filter((user) => user.id !== selectedUser?.id)
-                .map((user) => (
-                  <option key={user.id} value={user.id}>{user.full_name} ({user.id})</option>
-                ))}
-            </select>
+              placeholder="Enter the recipient's user ID"
+              autoComplete="off"
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-white outline-none placeholder:text-slate-500"
+            />
           </div>
         ) : null}
 

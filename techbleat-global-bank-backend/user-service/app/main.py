@@ -1,11 +1,16 @@
+import logging
 import os
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr, Field, SecretStr
+from pydantic import BaseModel, EmailStr, Field, SecretStr, field_validator
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+
+from app.auth import Caller, require_roles
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
@@ -23,18 +28,23 @@ app = FastAPI(title="Techbleat Global Bank - User Service")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_ORIGIN, "http://127.0.0.1:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[FRONTEND_ORIGIN],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 
 class UserCreate(BaseModel):
-    id: str = Field(min_length=3, max_length=100, pattern=r"^[a-zA-Z0-9._-]+$")
-    full_name: str = Field(min_length=2, max_length=255)
+    id: str = Field(min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9._-]+$")
+    full_name: str = Field(min_length=2, max_length=100)
     email: EmailStr
-    password: SecretStr = Field(min_length=3, max_length=128)
+    password: SecretStr = Field(min_length=12, max_length=128)
+
+    @field_validator("id")
+    @classmethod
+    def lowercase_id(cls, value: str) -> str:
+        # Keycloak lowercases usernames, and APIs match the bank ID to the token's preferred_username.
+        return value.lower()
 
 
 @app.get("/health")
@@ -47,7 +57,7 @@ def create_user(user: UserCreate):
     with engine.begin() as conn:
         existing = conn.execute(
             text("SELECT id FROM users WHERE id = :id OR email = :email"),
-            {"id": user.id, "email": user.email},
+            {"id": user.id, "email": str(user.email).lower()},
         ).fetchone()
 
         if existing:
@@ -173,16 +183,19 @@ def delete_keycloak_user(keycloak_user_id: str, access_token: str) -> None:
         pass
 
 
-@app.get("/users")
-def list_users():
+@app.get("/users/me")
+def current_user(caller: Caller = Depends(require_roles("banking-customer"))):
     with engine.begin() as conn:
-        rows = conn.execute(
+        row = conn.execute(
             text(
                 '''
                 SELECT id, full_name, email, created_at
                 FROM users
-                ORDER BY created_at DESC
+                WHERE id = :id
                 '''
-            )
-        ).mappings().all()
-        return [dict(row) for row in rows]
+            ),
+            {"id": caller.user_id},
+        ).mappings().first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="No bank profile is linked to this sign-in")
+    return dict(row)

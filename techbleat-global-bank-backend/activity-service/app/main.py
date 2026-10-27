@@ -1,12 +1,18 @@
 import json
+import logging
 import os
 import threading
 import time
 
 from confluent_kafka import Consumer
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
+
+from app.auth import Caller, deny, require_roles
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+logger = logging.getLogger("activity-service")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092")
@@ -21,10 +27,9 @@ app = FastAPI(title="Techbleat Global Bank - Activity Service")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_ORIGIN, "http://127.0.0.1:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[FRONTEND_ORIGIN],
+    allow_methods=["GET"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 
@@ -40,7 +45,8 @@ def kafka_consumer_loop():
                 }
             )
             consumer.subscribe(["banking-transactions"])
-        except Exception:
+        except Exception as error:
+            logger.warning("kafka_consumer_start_failed error=%s", type(error).__name__)
             time.sleep(3)
 
     while True:
@@ -49,6 +55,7 @@ def kafka_consumer_loop():
             if msg is None:
                 continue
             if msg.error():
+                logger.warning("kafka_message_error error=%s", msg.error())
                 continue
 
             event = json.loads(msg.value().decode("utf-8"))
@@ -71,7 +78,9 @@ def kafka_consumer_loop():
                         "description": description,
                     },
                 )
-         except Exception:
+         except Exception as error:
+            # Log the failure type only: event payloads contain account and amount data.
+            logger.error("activity_event_failed error=%s", type(error).__name__)
             time.sleep(1)
 
 
@@ -87,7 +96,9 @@ def health():
 
 
 @app.get("/activities/{user_id}")
-def get_activities(user_id: str):
+def get_activities(user_id: str, request: Request, caller: Caller = Depends(require_roles("banking-customer"))):
+    if user_id != caller.user_id:
+        raise deny(request, caller, "activity history belongs to another user")
     with engine.begin() as conn:
         rows = conn.execute(
             text(
