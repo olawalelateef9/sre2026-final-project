@@ -1,7 +1,9 @@
 # Local development stack. Data services listen on 127.0.0.1 only; images are pinned by digest.
 services:
   postgres:
-    image: postgres:15.19-bookworm@sha256:22c6356b2897cb0b4be6ad550b44ff97a0f29df7dbe327c01bc3c84bd457694d
+    # trixie (glibc 2.41) matches the collation the existing data volume was created with;
+    # changing the OS variant of a Postgres image requires a reindex.
+    image: postgres:15.19-trixie@sha256:baa22e6286bf832cb147b8bb5aa9d8bc999846d69c21d11bf63f58fbeed1fa48
     container_name: banking-postgres
     environment:
       POSTGRES_DB: bankingdb
