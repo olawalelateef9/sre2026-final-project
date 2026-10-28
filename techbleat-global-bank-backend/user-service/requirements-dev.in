@@ -1,0 +1,5 @@
+# Test-only dependencies, constrained to the runtime lock. Regenerate with:
+#   pip-compile --generate-hashes --allow-unsafe requirements-dev.in
+-c requirements.txt
+pytest==9.2.0
+httpx==0.28.1

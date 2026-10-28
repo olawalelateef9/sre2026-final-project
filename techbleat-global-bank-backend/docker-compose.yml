@@ -1,30 +1,38 @@
+# Local development stack. Data services listen on 127.0.0.1 only; images are pinned by digest.
 services:
   postgres:
-    image: postgres:15
+    image: postgres:15.19-bookworm@sha256:22c6356b2897cb0b4be6ad550b44ff97a0f29df7dbe327c01bc3c84bd457694d
     container_name: banking-postgres
     environment:
       POSTGRES_DB: bankingdb
       POSTGRES_USER: bankuser
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in techbleat-global-bank-backend/.env}
+    # Host port 15432 for local inspection only; services use postgres:5432 on the Compose network.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:15432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./db-init/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bankuser -d bankingdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
 
   redis:
-    image: redis:7
+    image: redis:7.4.12-bookworm@sha256:bd28fff4b665fdf1b73e8b5b73ec05d2f858f4fa3c8ea0d7c9bc09f7f6bf7039
     container_name: banking-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
   kafka:
-    image: confluentinc/cp-kafka:8.1.1
+    image: confluentinc/cp-kafka:8.1.6@sha256:8293182e4b673f2c23af6f84ab9a506633fa7ba993ca7c12f8432a5efeb39e74
     hostname: kafka
     container_name: kafka
     ports:
-      - "9092:9092"
-      - "9101:9101"
+      - "127.0.0.1:9092:9092"
+      - "127.0.0.1:9101:9101"
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
@@ -48,6 +56,10 @@ services:
   user-service:
     build: ./user-service
     container_name: user-service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgresql://bankuser:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in techbleat-global-bank-backend/.env}@postgres:5432/bankingdb
       FRONTEND_ORIGIN: http://localhost:3000
@@ -59,11 +71,19 @@ services:
       KEYCLOAK_JWK_SET_URI: ${KEYCLOAK_URL:-http://host.docker.internal:8080}/realms/${KEYCLOAK_REALM:-banking}/protocol/openid-connect/certs
       KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-banking-api}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
   transaction-service:
     build: ./transaction-service
     container_name: transaction-service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      redis:
+        condition: service_started
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/bankingdb
       SPRING_DATASOURCE_USERNAME: bankuser
@@ -78,11 +98,17 @@ services:
       KEYCLOAK_JWK_SET_URI: ${KEYCLOAK_URL:-http://host.docker.internal:8080}/realms/${KEYCLOAK_REALM:-banking}/protocol/openid-connect/certs
       KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-banking-api}
     ports:
-      - "8090:8080"
+      - "127.0.0.1:8090:8080"
 
   activity-service:
     build: ./activity-service
     container_name: activity-service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
     environment:
       DATABASE_URL: postgresql://bankuser:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in techbleat-global-bank-backend/.env}@postgres:5432/bankingdb
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
@@ -91,12 +117,13 @@ services:
       KEYCLOAK_JWK_SET_URI: ${KEYCLOAK_URL:-http://host.docker.internal:8080}/realms/${KEYCLOAK_REALM:-banking}/protocol/openid-connect/certs
       KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-banking-api}
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
 
   finance-agent:
     build:
       context: ../finance-agent
     container_name: finance-agent
+    restart: unless-stopped
     env_file:
       - path: ../finance-agent/.env
         required: false
@@ -109,16 +136,17 @@ services:
     depends_on:
       - transaction-service
     ports:
-      - "9001:9001"
+      - "127.0.0.1:9001:9001"
 
   frontend:
     build:
       context: ../techbleat-global-bank-frontend
       dockerfile: dockerfile
     container_name: frontend
+    restart: unless-stopped
     image: frontend
     ports:
-      - "3000:80"
+      - "3000:8080"
 
 volumes:
   postgres_data:

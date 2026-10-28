@@ -1,0 +1,9 @@
+tests/
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+requirements*.in
+requirements-dev.txt
+.env
+.env.*
+Dockerfile

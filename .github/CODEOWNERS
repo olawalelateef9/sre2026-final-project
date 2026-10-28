@@ -1,0 +1,8 @@
+# With branch protection's "Require review from Code Owners", changes to these
+# paths need approval from the listed owner before merging to main.
+*                    @olawalelateef9
+
+# Security-sensitive: pipeline, release gate exceptions, identity configuration.
+/.github/            @olawalelateef9
+/.trivyignore        @olawalelateef9
+/keycloak/           @olawalelateef9

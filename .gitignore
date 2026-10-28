@@ -51,3 +51,11 @@ replay_pid*
 **/~$*
 **/*_bk
 **/soem logs
+
+# Local scan and test output
+**/test-results.xml
+gitleaks.sarif
+trivy-*.json
+sbom-*.spdx.json
+release-*.txt
+**/.pytest_cache/

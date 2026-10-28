@@ -1,0 +1,79 @@
+# Rendered at container start by the nginx image's envsubst step; only variables
+# defined in the environment (KEYCLOAK_ORIGIN and the *_UPSTREAM values) are replaced.
+
+# Registration is the only unauthenticated write: 5 sign-ups per minute per client address.
+# Behind a load balancer or CDN, configure real_ip so this keys on the client, not the proxy.
+limit_req_zone $binary_remote_addr zone=signup:10m rate=5r/m;
+limit_req_status 429;
+
+server {
+    listen 8080;
+    server_name _;
+    server_tokens off;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    client_max_body_size 16k;
+
+    # Applied to every response, including proxied API responses.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' ${KEYCLOAK_ORIGIN}; frame-src ${KEYCLOAK_ORIGIN}; form-action 'self' ${KEYCLOAK_ORIGIN}; frame-ancestors 'none'; base-uri 'self'; object-src 'none'" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 60s;
+    proxy_hide_header X-Powered-By;
+    proxy_hide_header Server;
+
+    # React/Vite frontend
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Hashed build assets never change, so they can be cached for a year.
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+
+    # FastAPI user service; registration is rate limited.
+    location = /user-api/users {
+        limit_req zone=signup burst=3 nodelay;
+        proxy_pass http://${USER_SERVICE_UPSTREAM}/users;
+    }
+
+    location /user-api/ {
+        proxy_pass http://${USER_SERVICE_UPSTREAM}/;
+    }
+
+    # Spring Boot transaction service
+    location /transaction-api/ {
+        proxy_pass http://${TRANSACTION_SERVICE_UPSTREAM}/;
+    }
+
+    # FastAPI activity service
+    location /activity-api/ {
+        proxy_pass http://${ACTIVITY_SERVICE_UPSTREAM}/;
+    }
+
+    # FinanceAgent API
+    location /finance-agent-api/ {
+        proxy_pass http://${FINANCE_AGENT_UPSTREAM}/;
+        proxy_read_timeout 90s;
+    }
+
+    location = /frontend-health {
+        access_log off;
+        default_type text/plain;
+        return 200 "healthy\n";
+    }
+}

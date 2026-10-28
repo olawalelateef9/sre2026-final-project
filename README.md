@@ -51,6 +51,8 @@ Check service health at:
 - Activity service: `http://localhost:8001/health`
 - FinanceAgent: `http://localhost:9001/health`
 
+Only the frontend (port 3000) is published on all interfaces. The APIs and the data stores bind to `127.0.0.1`. PostgreSQL is on host port `15432` to avoid clashing with a locally installed PostgreSQL.
+
 ## Run the Frontend Separately
 
 Start the backend services first, then run:
@@ -93,6 +95,10 @@ An administrator must assign `banking-customer` after registration before the us
 | Activity | `http://localhost:8001` | `GET /health`, `GET /activities/{userId}` |
 
 Registration uses `POST /users` with `id`, `full_name`, `email`, and `password`, and is the only unauthenticated endpoint besides `/health`. All other endpoints require a bearer token with the `banking-api` audience and the `banking-customer` role; transaction writes also require `banking-transact`. Each API acts on the token's `preferred_username`: `GET /users/me` returns only the caller's profile, and a `{userId}` path value or `X-User-Id` header that names a different user is rejected with `403`.
+
+## CI/CD and Supply Chain
+
+[`.github/workflows/ci.yml`](./.github/workflows/ci.yml) runs a secret scan, a dependency scan, all tests, and a frontend bundle check on every pull request. Only if those pass does it build and scan each image. On `main` and `v*.*.*` tags, it publishes the images to GHCR by digest with an SPDX SBOM, a keyless Cosign signature, and SLSA provenance. The release gate fails on any HIGH or CRITICAL vulnerability that has a fix. Images run as non-root users, base images and actions are pinned by digest or SHA, and Python dependencies are hash-locked. See [`docs/security/supply-chain.md`](./docs/security/supply-chain.md) for the pipeline, triage process, verification commands, and the GitHub settings to enable.
 
 ## Security Notes
 

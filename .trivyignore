@@ -1,0 +1,12 @@
+# Accepted vulnerability exceptions for the CI release gate (fixable HIGH/CRITICAL).
+#
+# Every entry needs: the ID, why it does not apply or cannot be fixed yet, who
+# accepted it, and an expiry date after which it must be re-reviewed. Entries
+# are reviewed in pull requests like any other change. See
+# docs/security/supply-chain.md for the triage process.
+#
+# Format:
+#   # <component>: <reason>. Accepted by <name> on <date>.
+#   CVE-XXXX-NNNNN exp:YYYY-MM-DD
+#
+# No exceptions are currently accepted.

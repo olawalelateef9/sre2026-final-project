@@ -3,5 +3,9 @@ dist
 .git
 .gitignore
 npm-debug.log
-Dockerfile
+dockerfile
 README.md
+images
+frontend-eks.yaml
+.env
+.env.*
