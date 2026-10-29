@@ -36,14 +36,33 @@ else
      && KUBECONFIG="$KUBECONFIG_FILE" kubectl get nodes >/dev/null 2>&1; then
     export KUBECONFIG="$KUBECONFIG_FILE"
 
+    # Stop GitOps first so Argo CD does not recreate what is deleted below.
+    if kubectl get namespace argocd >/dev/null 2>&1; then
+      log "Stopping Argo CD reconciliation..."
+      kubectl delete namespace argocd --wait=true --timeout=5m || true
+    fi
+
     log "Deleting LoadBalancer Services..."
     kubectl get svc -A -o jsonpath='{range .items[?(@.spec.type=="LoadBalancer")]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' |
       while read -r ns name; do
         [[ -n "$ns" ]] && kubectl delete svc -n "$ns" "$name" --wait=true --timeout=5m
       done
 
-    log "Deleting PersistentVolumeClaims..."
+    # A volume cannot be released while a pod mounts it, so remove the workloads first.
+    # kube-system is kept: it runs the EBS CSI driver and load balancer controller,
+    # which must stay up to delete the AWS resources behind volumes and Services.
+    log "Deleting application namespaces and workloads..."
+    kubectl get namespaces -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' |
+      grep -vxE 'kube-system|kube-public|kube-node-lease|default' |
+      xargs -r kubectl delete namespace --wait=true --timeout=10m || true
+    kubectl delete statefulsets,deployments,daemonsets,jobs,pods --all -n default --wait=true --timeout=5m || true
+
+    log "Deleting PersistentVolumeClaims and waiting for their EBS volumes to be removed..."
     kubectl delete pvc --all -A --wait=true --timeout=5m || true
+    for _ in $(seq 1 30); do
+      [[ $(kubectl get pv --no-headers 2>/dev/null | wc -l) -eq 0 ]] && break
+      sleep 10
+    done
 
     if [[ -n "$vpc_id" ]]; then
       log "Waiting for load balancers in $vpc_id to be deleted..."
@@ -65,6 +84,16 @@ else
   # EKS can recreate its control-plane log group while the cluster is being deleted,
   # which would make the next `up` fail with "already exists".
   aws logs delete-log-group --region "$REGION" --log-group-name "/aws/eks/$cluster/cluster" >/dev/null 2>&1 || true
+
+  # Safety net: volumes the CSI driver could not delete (e.g. the cluster was unreachable)
+  # are tagged as owned by this cluster and are now detached.
+  orphans=$(aws ec2 describe-volumes --region "$REGION" \
+    --filters "Name=tag:kubernetes.io/cluster/$cluster,Values=owned" Name=status,Values=available \
+    --query 'Volumes[].VolumeId' --output text)
+  for volume in $orphans; do
+    log "Deleting orphaned EBS volume $volume"
+    aws ec2 delete-volume --region "$REGION" --volume-id "$volume"
+  done
   rm -f "$KUBECONFIG_FILE"
 
   log "Destroyed in $(( ($(date +%s) - started) / 60 )) minutes."
