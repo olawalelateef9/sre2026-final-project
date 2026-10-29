@@ -6,6 +6,10 @@ provider "registry.terraform.io/hashicorp/aws" {
   constraints = ">= 6.0.0, >= 6.28.0, >= 6.59.0, ~> 6.71"
   hashes = [
     "h1:C3/Z1KOfb5v3bVoneZm4s+BTiKi5xG9qSU2puEZLndE=",
+    "h1:aLOQts7nCLMR0kb/jCdP56wlQQoGqhKLctKgtQjDopc=",
+    "h1:rMbzU/i9txGvoI/hiB6EMln0NlmxM/61SrI9XBvI41Q=",
+    "h1:sZCupscga0Grk22+04FNY1RYDeOcVbCTd6ff8+hsF94=",
+    "h1:tmOIsPrIHwR6en567EnkR0nqIr9yD0XQcadgSsPpG2g=",
     "zh:09aa14408c5ab26915fb2a469b5eb67c06393a2054d78592ba4c32f7a882e918",
     "zh:1d1138128dc4866f6c16b1ef3b871b3fd9a3dc648e9056e06e210d1817aa052b",
     "zh:2c17a79821a0e06fbf1834a12e92227db29c2001fef7ef0b347af2e6dad83f14",
@@ -29,7 +33,11 @@ provider "registry.terraform.io/hashicorp/cloudinit" {
   version     = "2.4.1"
   constraints = ">= 2.0.0"
   hashes = [
+    "h1:8ittBnx/AJ461WxB0hbsOBDeh3IL2nK7TqQdcoxGKmI=",
+    "h1:TKuE7Sq6387hl4eBo0/Gur73M9IP7OM0soSr6IqXWr0=",
+    "h1:dc0Fu1Hl/FpbjWufibEvUypXEP1A97ilVScmTuP0VXM=",
     "h1:u3J0krBLiZNIXcxmDfVOgV4MFgjlxKM4pXYZnZXFaNE=",
+    "h1:v0ag7bzmTcpAryKg11uX90R0O0v7M3B9VbhFav0f2Gw=",
     "zh:0290af752ce1617c9258e11ccac1787ff134c59f444197db759af65e6e4fed2e",
     "zh:489e950720f129c51a3868575c8656e165cd58652c34cb5d2efd9f89057f46b4",
     "zh:5688e28d20f3a4cfea7808d882824e75ebdd6b2cb305df126d13b04f7a874ba2",
@@ -50,7 +58,11 @@ provider "registry.terraform.io/hashicorp/null" {
   version     = "3.3.2"
   constraints = ">= 3.0.0"
   hashes = [
+    "h1:/Wbz7DHFO92KAqyDBMxGA8nwOJYECM8iLGhR7+wVWhQ=",
+    "h1:7rn0+p+fbrHfJxNVgTnlKp6C3yu0jENMXffz9Xb9XjQ=",
+    "h1:IQ1qrkht1sC1nibUR+AJ3ulryyhVDHfCHZhoJi0sg2Y=",
     "h1:QHchxxdTGLOaosAvxGZrE4cem50svl2TxUsWGki/fMQ=",
+    "h1:SsePRc2TCwjh/+zp9OZRUchvaC96ik8pEIs2vxfW1nA=",
     "zh:10ec43b8b7b18d5639238c7fb9e111f6a4b038523dd66c7a426bf27b25fa4c08",
     "zh:60beb9cc2ad5b871c710860cee75b42850cc6acd43db0d77cb5e00fda7288b55",
     "zh:62538582d0a4a2f10ad8a8d9a6c3cd3f05af6c6d91c6641ffc78d4f0e8e69b27",
@@ -72,6 +84,10 @@ provider "registry.terraform.io/hashicorp/time" {
   constraints = ">= 0.9.0"
   hashes = [
     "h1:Ehc5ZhntyhBJ0yiRlvZjr8AaSTvZaN10qDpbIupgWn0=",
+    "h1:eQRXh8mZFlUJfzYXKdaYRHRMhiS2cFyCfgP1mjkrtuI=",
+    "h1:gnP2hptiFIHSHUFBvAFKhE/Yh5u5yVEx+P7XSB58A/E=",
+    "h1:mwxQFMxGnM+Xm3F76yeHSAfPr3RZq/+XGT1vjgwiRWQ=",
+    "h1:pzcwOL4EnAXPWkGDyq/RfnKLb/+iqIs1adLH22oUNTk=",
     "zh:0aa1028d91041f4dceba193e3707dac57358d0063d97e20700e554758b67baca",
     "zh:32bee9f2b2678e2a0789ad86e716d09ca1d5450180b3cd8033ee7a251bfd352e",
     "zh:3aded9ef4dc6f4aec202a50c68a08b40013d325f9947f10168ebc8bee54109fc",
@@ -92,7 +108,11 @@ provider "registry.terraform.io/hashicorp/tls" {
   version     = "4.4.2"
   constraints = ">= 4.0.0"
   hashes = [
+    "h1:/RQKd6LussdsR99zSuIYdV4e3JrV4l0stQ5Vb1qnbWo=",
+    "h1:T4sXxndkfSCR5EVGTWj0lh4ODoRu/DEe+1+Pm9nt9J8=",
     "h1:Ug4ScWpzWTHLrkiwMJ/x2JZpmMnhOYuPtltEOTB5TrI=",
+    "h1:WnRZFr4NXa55sbbYaNVFccnx4VlJqtnzj0tnF3veJeI=",
+    "h1:cMw+jmw1zbZ2Tgl2zwm1pU3S5jySk9i2W3ZRzu7YaVI=",
     "zh:034fdb3f45f0fe3e6fc905bfe451eab8f7055c253f27c787470f550621993c4b",
     "zh:16a5d4055a8e2f6d35e139d6c4c23fb8c53d9f6105b8d509030bb9720b301e02",
     "zh:2d4009339fcbb2c9c2fe0eeb1cd9154d8bc06794c1c34265a32f97a5a56001f7",

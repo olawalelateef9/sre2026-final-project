@@ -24,7 +24,16 @@ bootstrap_output() {
     python -c "import json,sys; print(json.load(sys.stdin).get('$1', {}).get('value', ''))" 2>/dev/null || true
 }
 
+# 32-bit Terraform cannot run some providers (fails with "Unrecognized remote plugin message").
+require_64bit_terraform() {
+  local platform
+  platform=$(terraform version -json 2>/dev/null | python -c "import json,sys; print(json.load(sys.stdin)['platform'])" 2>/dev/null || true)
+  [[ "$platform" != *_386 && "$platform" != *_arm ]] ||
+    die "Terraform is a 32-bit build ($platform). Install the 64-bit (amd64/arm64) build from https://developer.hashicorp.com/terraform/install"
+}
+
 load_bootstrap_outputs() {
+  require_64bit_terraform
   STATE_BUCKET=$(bootstrap_output state_bucket)
   REGION=$(bootstrap_output region)
   [[ -n "$STATE_BUCKET" && -n "$REGION" ]] ||
