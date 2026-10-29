@@ -24,7 +24,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: frontend
-          image: ghcr.io/olawalelateef9/techbleat-frontend@sha256:11cd13226bc333c5c456402397456f38a7d56943d23b5b3ec80dd069f5ef2297 # source: 0ab42cd51ea1462a73ba3ea72c6937c61c3ecc7b
+          image: ghcr.io/olawalelateef9/techbleat-frontend@sha256:19e6e3ad997cdf9219e2f619b768620cce584dc718fd3af089268feb4a67c29f # source: 89f24d917cb06a59330cf105436ac8a0fdc0ce9b
           env:
             - {name: KEYCLOAK_ORIGIN, value: "https://auth.techbleatglobalbank.duckdns.org"}
             - {name: KEYCLOAK_URL, value: "https://auth.techbleatglobalbank.duckdns.org"}
@@ -80,7 +80,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: user-service
-          image: ghcr.io/olawalelateef9/techbleat-user-service@sha256:b611710c4509041664c99f76ecd4bd39d048f08f7592ff8d37549171f7b59b6c # source: 0ab42cd51ea1462a73ba3ea72c6937c61c3ecc7b
+          image: ghcr.io/olawalelateef9/techbleat-user-service@sha256:56a1cda307114db2489e63aa615b43f1b442a8e4f4af274eb584523205213328 # source: 89f24d917cb06a59330cf105436ac8a0fdc0ce9b
           env:
             - {name: FRONTEND_ORIGIN, value: "https://techbleatglobalbank.duckdns.org"}
             - {name: KEYCLOAK_URL, value: "http://keycloak.keycloak.svc.cluster.local:8080"}
@@ -131,7 +131,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: transaction-service
-          image: ghcr.io/olawalelateef9/techbleat-transaction-service@sha256:12c4a30ef26577e276dd7089e6bb4357d01f1c7b3cb5e5f2465faa1775ecbde9 # source: 0ab42cd51ea1462a73ba3ea72c6937c61c3ecc7b
+          image: ghcr.io/olawalelateef9/techbleat-transaction-service@sha256:fc076d7f62514753d2246dc3ab9c0f1472efd7d5cf056b0d9908bc5ac2a6fb33 # source: 89f24d917cb06a59330cf105436ac8a0fdc0ce9b
           env:
             - {name: SERVER_PORT, value: "8080"}
             - {name: FRONTEND_ORIGIN, value: "https://techbleatglobalbank.duckdns.org"}
@@ -210,7 +210,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: activity-service
-          image: ghcr.io/olawalelateef9/techbleat-activity-service@sha256:2c0f8f6ba9b9433674f4f0591fc37156fec2d59b5f1a74c5a47f8f176e24462a # source: 0ab42cd51ea1462a73ba3ea72c6937c61c3ecc7b
+          image: ghcr.io/olawalelateef9/techbleat-activity-service@sha256:d89cfbf94ebd4a69f9d099e098d1b58af5541c866a49203e5682f678a8703035 # source: 89f24d917cb06a59330cf105436ac8a0fdc0ce9b
           env:
             - {name: FRONTEND_ORIGIN, value: "https://techbleatglobalbank.duckdns.org"}
             - {name: KEYCLOAK_ISSUER, value: "https://auth.techbleatglobalbank.duckdns.org/realms/banking"}
@@ -272,7 +272,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: finance-agent
-          image: ghcr.io/olawalelateef9/techbleat-finance-agent@sha256:ade24848abb39aa2c56a4deb6c45119ffdaa1a7d5db58d2179c785b095f71750 # source: 0ab42cd51ea1462a73ba3ea72c6937c61c3ecc7b
+          image: ghcr.io/olawalelateef9/techbleat-finance-agent@sha256:8bddf845fd8f5eb0cfebffbcb3c3c6c1400ea985c1ff950261d3419303bac9e7 # source: 89f24d917cb06a59330cf105436ac8a0fdc0ce9b
           env:
             - {name: KEYCLOAK_ISSUER, value: "https://auth.techbleatglobalbank.duckdns.org/realms/banking"}
             - {name: KEYCLOAK_URL, value: "http://keycloak.keycloak.svc.cluster.local:8080"}
