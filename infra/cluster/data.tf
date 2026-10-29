@@ -65,10 +65,12 @@ resource "aws_db_parameter_group" "postgres" {
   name   = "${var.name}-postgres17"
   family = "postgres17"
 
-  # Reject unencrypted client connections.
+  # Reject unencrypted client connections. Static parameter: applied when the instance is
+  # created with this group (AWS records it as pending-reboot).
   parameter {
-    name  = "rds.force_ssl"
-    value = "1"
+    name         = "rds.force_ssl"
+    value        = "1"
+    apply_method = "pending-reboot"
   }
 
   parameter {

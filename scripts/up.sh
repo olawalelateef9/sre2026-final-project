@@ -50,6 +50,11 @@ kubectl wait --for=condition=Ready nodes --all --timeout=10m >/dev/null
 # ---- 2. Argo CD ----------------------------------------------------------------------------
 
 log "Installing Argo CD..."
+# Isolated Helm repository settings, so an operator's own (possibly stale) Helm repos
+# cannot break the install.
+HELM_REPOSITORY_CONFIG=$(mktemp)
+HELM_REPOSITORY_CACHE=$(mktemp -d)
+export HELM_REPOSITORY_CONFIG HELM_REPOSITORY_CACHE
 helm upgrade --install argocd argo-cd --repo https://argoproj.github.io/argo-helm --version 10.11.6 \
   --namespace argocd --create-namespace -f "$ROOT_DIR/deploy/argocd/values.yaml" --wait --timeout 10m >/dev/null
 

@@ -34,6 +34,7 @@ provider "registry.terraform.io/hashicorp/cloudinit" {
   constraints = ">= 2.0.0"
   hashes = [
     "h1:8ittBnx/AJ461WxB0hbsOBDeh3IL2nK7TqQdcoxGKmI=",
+    "h1:BqWtcTv6cRPot06TqDQy/AqWTbTc75TOOAqfDLDCZ4g=",
     "h1:TKuE7Sq6387hl4eBo0/Gur73M9IP7OM0soSr6IqXWr0=",
     "h1:dc0Fu1Hl/FpbjWufibEvUypXEP1A97ilVScmTuP0VXM=",
     "h1:u3J0krBLiZNIXcxmDfVOgV4MFgjlxKM4pXYZnZXFaNE=",

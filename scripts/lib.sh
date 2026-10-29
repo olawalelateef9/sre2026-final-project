@@ -11,6 +11,36 @@ DOMAIN="techbleatglobalbank.duckdns.org"
 # shellcheck disable=SC2034
 TLS_BACKUP_SECRET="techbleat/tls-certificate-backup"
 
+# On Windows (Git Bash) Terraform runs in a Linux container: antivirus has repeatedly
+# quarantined provider plugins (terraform-provider-cloudinit) while Terraform was running.
+# Plugins live in a Docker volume, outside the scanned Windows file system. Set
+# TERRAFORM_DOCKER=1 to force this elsewhere, or 0 to use a local terraform binary.
+TERRAFORM_IMAGE="hashicorp/terraform:1.16.6@sha256:bfffc1ded5fbf0a17beaaf22eb4793980abdb19d0761ff6a3a0efb2ab4d9b316"
+if [[ "${TERRAFORM_DOCKER:-auto}" == "1" || ( "${TERRAFORM_DOCKER:-auto}" == "auto" && "$(uname -s)" == MINGW* ) ]]; then
+  terraform() {
+    local args=() stack=default arg relative aws_dir
+    for arg in "$@"; do
+      if [[ "$arg" == -chdir=* ]]; then
+        relative=${arg#-chdir=}
+        relative=${relative#"$ROOT_DIR"/}
+        args+=("-chdir=/work/$relative")
+        stack=$(basename "$relative")
+      else
+        args+=("$arg")
+      fi
+    done
+    aws_dir="$HOME/.aws"
+    command -v cygpath >/dev/null 2>&1 && aws_dir=$(cygpath -m "$aws_dir")
+    MSYS_NO_PATHCONV=1 docker run --rm -i \
+      -v "$ROOT_DIR:/work" \
+      -v "$aws_dir:/root/.aws:ro" \
+      -v techbleat-terraform-data:/tfdata \
+      -e "TF_DATA_DIR=/tfdata/$stack" \
+      -e AWS_PROFILE -e AWS_REGION -e TF_IN_AUTOMATION=1 \
+      -w /work "$TERRAFORM_IMAGE" "${args[@]}"
+  }
+fi
+
 log() { printf '\n==> %s\n' "$*"; }
 die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 
@@ -23,6 +53,8 @@ require() {
 # Prints a bootstrap output, or nothing if the bootstrap stack has not been applied.
 # (terraform prints a warning on stdout and exits 0 when outputs are missing.)
 bootstrap_output() {
+  # Plugins must be present for this Terraform data directory (container or local).
+  terraform -chdir="$BOOTSTRAP_DIR" init -input=false >/dev/null 2>&1 || true
   terraform -chdir="$BOOTSTRAP_DIR" output -json 2>/dev/null |
     python -c "import json,sys; print(json.load(sys.stdin).get('$1', {}).get('value', ''))" 2>/dev/null || true
 }

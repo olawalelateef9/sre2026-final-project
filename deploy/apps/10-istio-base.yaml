@@ -20,6 +20,9 @@ spec:
     namespace: istio-system
   syncPolicy:
     automated: {prune: true, selfHeal: true}
+    retry:
+      limit: 10
+      backoff: {duration: 15s, factor: 2, maxDuration: 3m}
     syncOptions: [CreateNamespace=true, ServerSideApply=true]
   # The validating webhook's failurePolicy is patched by istiod at runtime.
   ignoreDifferences:

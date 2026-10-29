@@ -1,13 +1,18 @@
 # Creates the internet-facing NLB for the Istio gateway. IAM comes from EKS Pod Identity
 # (infra/cluster/iam.tf). Pods cannot reach instance metadata (hop limit 1), so the VPC
 # is found by its Name tag and the region is set explicitly.
+#
+# Runs after cert-manager, which issues its webhook certificate: the chart's built-in
+# certificate is regenerated on every render, so Argo CD drifted the CA and the webhook
+# failed TLS. The Service-mutating webhook is off (the Gateway requests this controller
+# explicitly), so a controller outage cannot block Service creation cluster-wide.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: aws-load-balancer-controller
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "-20"
+    argocd.argoproj.io/sync-wave: "-18"
 spec:
   project: platform
   source:
@@ -21,6 +26,8 @@ spec:
         vpcTags:
           Name: techbleat-vpc
         replicaCount: 1
+        enableCertManager: true
+        enableServiceMutatorWebhook: false
         serviceAccount:
           name: aws-load-balancer-controller
         resources:
@@ -31,3 +38,6 @@ spec:
     namespace: kube-system
   syncPolicy:
     automated: {prune: true, selfHeal: true}
+    retry:
+      limit: 10
+      backoff: {duration: 15s, factor: 2, maxDuration: 3m}

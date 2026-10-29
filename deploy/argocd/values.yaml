@@ -13,6 +13,10 @@ applicationSet:
   replicas: 0
 
 configs:
+  params:
+    # Diff against what the API server would store (defaults included), so CRDs and
+    # Services do not show permanent false OutOfSync after server-side apply.
+    controller.diff.server.side: "true"
   cm:
     exec.enabled: false
     statusbadge.enabled: false
