@@ -12,8 +12,11 @@ spec:
     repoURL: https://github.com/olawalelateef9/sre2026-final-project.git
     targetRevision: main
     path: deploy/data
+  # Default namespace; the db-init resources name banking-admin explicitly. Both are
+  # allowed destinations of the banking project.
   destination:
     server: https://kubernetes.default.svc
+    namespace: banking
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     retry:
