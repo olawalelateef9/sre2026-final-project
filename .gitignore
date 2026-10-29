@@ -59,3 +59,13 @@ trivy-*.json
 sbom-*.spdx.json
 release-*.txt
 **/.pytest_cache/
+
+# Terraform: never commit state, plans or real variable files; do commit .terraform.lock.hcl
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+**/terraform.tfvars
+!**/terraform.tfvars.example
+# kubeconfig written by scripts/up.sh
+infra/.kubeconfig
