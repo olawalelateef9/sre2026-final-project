@@ -36,6 +36,30 @@ else
      && KUBECONFIG="$KUBECONFIG_FILE" kubectl get nodes >/dev/null 2>&1; then
     export KUBECONFIG="$KUBECONFIG_FILE"
 
+    # Keep a production certificate for the next session (Let's Encrypt allows only five
+    # identical certificates per week). Staging certificates are not worth keeping.
+    issuer=$(kubectl get secret bank-tls -n istio-ingress \
+      -o jsonpath='{.metadata.annotations.cert-manager\.io/issuer-name}' 2>/dev/null || true)
+    if [[ "$issuer" == "letsencrypt-production" ]]; then
+      log "Saving the production TLS certificate to Secrets Manager..."
+      cert_file=$(mktemp)
+      chmod 600 "$cert_file"
+      kubectl get secret bank-tls -n istio-ingress -o json |
+        python -c "
+import json, sys
+s = json.load(sys.stdin)
+meta = s['metadata']
+keep = {'name': meta['name'], 'namespace': meta['namespace'],
+        'labels': meta.get('labels', {}), 'annotations': meta.get('annotations', {})}
+print(json.dumps({'apiVersion': 'v1', 'kind': 'Secret', 'type': s['type'], 'metadata': keep, 'data': s['data']}))" > "$cert_file"
+      # The Windows AWS CLI needs a Windows path and cannot read /dev/stdin.
+      cert_path=$cert_file
+      command -v cygpath >/dev/null 2>&1 && cert_path=$(cygpath -m "$cert_file")
+      aws secretsmanager put-secret-value --region "$REGION" --secret-id "$TLS_BACKUP_SECRET" \
+        --secret-string "file://$cert_path" >/dev/null
+      rm -f "$cert_file"
+    fi
+
     # Stop GitOps first so Argo CD does not recreate what is deleted below.
     if kubectl get namespace argocd >/dev/null 2>&1; then
       log "Stopping Argo CD reconciliation..."
@@ -97,6 +121,18 @@ else
   rm -f "$KUBECONFIG_FILE"
 
   log "Destroyed in $(( ($(date +%s) - started) / 60 )) minutes."
+fi
+
+# The load balancer's IP returns to AWS's pool. Leaving DNS pointed at it would let whoever
+# receives that IP next serve (and obtain certificates for) this domain.
+if [[ -n "${DUCKDNS_TOKEN:-}" ]]; then
+  if duckdns_update "clear=true"; then
+    log "Cleared the DNS record for $DOMAIN."
+  else
+    log "WARNING: could not clear $DOMAIN in DuckDNS; clear it at https://www.duckdns.org."
+  fi
+else
+  log "WARNING: DUCKDNS_TOKEN not set; clear $DOMAIN manually at https://www.duckdns.org."
 fi
 
 "$SCRIPT_DIR/check-leftovers.sh"

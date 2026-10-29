@@ -1,9 +1,12 @@
 import Keycloak from "keycloak-js";
 
-const clientId = import.meta.env.VITE_KEYCLOAK_CLIENT_ID || "banking-frontend";
+// Runtime settings from /app-config.js (rendered by nginx from environment variables), so one
+// image serves every environment; build-time Vite variables remain as a fallback for dev.
+const runtime = window.APP_CONFIG || {};
+const clientId = runtime.keycloakClientId || import.meta.env.VITE_KEYCLOAK_CLIENT_ID || "banking-frontend";
 const keycloak = new Keycloak({
-  url: import.meta.env.VITE_KEYCLOAK_URL || "http://localhost:8080",
-  realm: import.meta.env.VITE_KEYCLOAK_REALM || "banking",
+  url: runtime.keycloakUrl || import.meta.env.VITE_KEYCLOAK_URL || "http://localhost:8080",
+  realm: runtime.keycloakRealm || import.meta.env.VITE_KEYCLOAK_REALM || "banking",
   clientId,
 });
 

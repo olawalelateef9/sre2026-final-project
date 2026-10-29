@@ -1,0 +1,27 @@
+# Istio CNI node agent: sets up traffic redirection at the node level, so application
+# pods need no NET_ADMIN init container and can run under Pod Security "restricted".
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: istio-cni
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+spec:
+  project: platform
+  source:
+    repoURL: https://istio-release.storage.googleapis.com/charts
+    chart: cni
+    targetRevision: 1.30.7
+    helm:
+      valuesObject:
+        cni:
+          resources:
+            requests: {cpu: 10m, memory: 64Mi}
+            limits: {memory: 128Mi}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: istio-system
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]

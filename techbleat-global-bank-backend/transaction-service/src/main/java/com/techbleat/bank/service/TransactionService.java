@@ -12,6 +12,8 @@ import org.springframework.messaging.Message;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import redis.clients.jedis.DefaultJedisClientConfig;
+import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.Jedis;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -42,6 +44,13 @@ public class TransactionService {
 
     @Value("${REDIS_PORT:6379}")
     private int redisPort;
+
+    // ElastiCache requires TLS and an AUTH token; local Compose Redis uses neither.
+    @Value("${REDIS_SSL:false}")
+    private boolean redisSsl;
+
+    @Value("${REDIS_PASSWORD:}")
+    private String redisPassword;
 
     // Writes run in one database transaction: if the Kafka publish fails, the balance change rolls back.
     @Transactional
@@ -122,7 +131,7 @@ public class TransactionService {
     }
 
     public Double getBalance(String userId) {
-        try (Jedis jedis = new Jedis(redisHost, redisPort)) {
+        try (Jedis jedis = redis()) {
             String value = jedis.get("balance:" + userId);
             if (value != null) {
                 return Double.parseDouble(value);
@@ -188,9 +197,20 @@ public class TransactionService {
     }
 
     private void cacheBalance(String userId, Double balance) {
-        try (Jedis jedis = new Jedis(redisHost, redisPort)) {
+        try (Jedis jedis = redis()) {
             jedis.set("balance:" + userId, String.valueOf(balance));
         } catch (Exception ignored) {
         }
+    }
+
+    private Jedis redis() {
+        DefaultJedisClientConfig.Builder config = DefaultJedisClientConfig.builder()
+                .ssl(redisSsl)
+                .connectionTimeoutMillis(2000)
+                .socketTimeoutMillis(2000);
+        if (!redisPassword.isBlank()) {
+            config.password(redisPassword);
+        }
+        return new Jedis(new HostAndPort(redisHost, redisPort), config.build());
     }
 }

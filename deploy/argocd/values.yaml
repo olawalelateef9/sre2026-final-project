@@ -1,0 +1,53 @@
+# Argo CD installation values (argo/argo-cd chart 10.11.6), applied by scripts/up.sh.
+# Argo CD is never exposed publicly: use `kubectl port-forward svc/argocd-server -n argocd 8443:443`.
+
+global:
+  domain: localhost:8443
+
+# Only the components GitOps needs.
+dex:
+  enabled: false
+notifications:
+  enabled: false
+applicationSet:
+  replicas: 0
+
+configs:
+  cm:
+    exec.enabled: false
+    statusbadge.enabled: false
+    # Report each child Application's health so the root app's sync waves wait for it.
+    resource.customizations.health.argoproj.io_Application: |
+      hs = {}
+      hs.status = "Progressing"
+      hs.message = ""
+      if obj.status ~= nil and obj.status.health ~= nil then
+        hs.status = obj.status.health.status
+        if obj.status.health.message ~= nil then
+          hs.message = obj.status.health.message
+        end
+      end
+      return hs
+  rbac:
+    # Read-only unless a role is granted; only the local admin can change anything.
+    policy.default: role:readonly
+
+controller:
+  resources:
+    requests: {cpu: 100m, memory: 512Mi}
+    limits: {memory: 1Gi}
+
+server:
+  resources:
+    requests: {cpu: 25m, memory: 128Mi}
+    limits: {memory: 256Mi}
+
+repoServer:
+  resources:
+    requests: {cpu: 50m, memory: 256Mi}
+    limits: {memory: 512Mi}
+
+redis:
+  resources:
+    requests: {cpu: 25m, memory: 64Mi}
+    limits: {memory: 128Mi}

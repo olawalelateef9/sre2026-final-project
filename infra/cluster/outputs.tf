@@ -10,21 +10,17 @@ output "vpc_id" {
   value = module.vpc.vpc_id
 }
 
-output "public_subnet_ids" {
-  description = "Subnets for the internet-facing ingress load balancer."
-  value       = module.vpc.public_subnets
+output "postgres_endpoint" {
+  description = "Private RDS endpoint (TLS required)."
+  value       = aws_db_instance.postgres.address
 }
 
-output "ingress_public_ip" {
-  description = "Static IP of the ingress load balancer; scripts/up.sh points DuckDNS at it."
-  value       = aws_eip.ingress.public_ip
+output "valkey_endpoint" {
+  description = "Private ElastiCache primary endpoint (TLS and AUTH required)."
+  value       = aws_elasticache_replication_group.valkey.primary_endpoint_address
 }
 
-output "ingress_eip_allocation_id" {
-  value = aws_eip.ingress.allocation_id
-}
-
-output "ingress_subnet_id" {
-  description = "Public subnet whose AZ the Elastic IP is attached in."
-  value       = module.vpc.public_subnets[0]
+output "secret_prefix" {
+  description = "Secrets Manager prefix readable by External Secrets."
+  value       = local.secret_prefix
 }

@@ -11,9 +11,9 @@ variable "name" {
 }
 
 variable "kubernetes_version" {
-  description = "EKS Kubernetes version (standard support only)."
+  description = "EKS Kubernetes version (standard support only). 1.36 because Istio 1.30, the newest release with published Helm charts, supports Kubernetes up to 1.36."
   type        = string
-  default     = "1.37"
+  default     = "1.36"
 }
 
 variable "admin_cidrs" {

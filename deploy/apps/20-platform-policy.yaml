@@ -1,0 +1,19 @@
+# Cluster-wide policy and the public edge: secret store, certificate issuers, mesh mTLS,
+# the Gateway, TLS certificate, HTTPS redirect, WAF and rate limit.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-policy
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/olawalelateef9/sre2026-final-project.git
+    targetRevision: main
+    path: deploy/platform/policy
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}

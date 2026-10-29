@@ -1,0 +1,48 @@
+# Two Argo CD projects separate what may change the cluster from what may change the app.
+#   platform: controllers, CRDs and cluster-wide policy, from pinned upstream sources.
+#   banking:  application workloads only, from this repository, namespaced resources only.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+spec:
+  description: Cluster platform components and policy
+  sourceRepos:
+    - https://github.com/olawalelateef9/sre2026-final-project.git
+    - https://github.com/kubernetes-sigs/gateway-api
+    - https://aws.github.io/eks-charts
+    - https://charts.jetstack.io
+    - https://charts.external-secrets.io
+    - https://strimzi.io/charts
+    - https://istio-release.storage.googleapis.com/charts
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: banking
+  namespace: argocd
+spec:
+  description: Banking workloads, Keycloak and their data plumbing
+  sourceRepos:
+    - https://github.com/olawalelateef9/sre2026-final-project.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: banking
+    - server: https://kubernetes.default.svc
+      namespace: keycloak
+    - server: https://kubernetes.default.svc
+      namespace: banking-admin
+  # Namespaced resources only: no CRDs, RBAC cluster roles or namespaces from app manifests.
+  clusterResourceWhitelist: []
+  namespaceResourceBlacklist:
+    - group: ""
+      kind: ResourceQuota
+    - group: ""
+      kind: LimitRange

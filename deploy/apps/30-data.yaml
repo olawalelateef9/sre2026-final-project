@@ -1,0 +1,18 @@
+# Kafka (Strimzi) for transaction events, and the database setup job for RDS.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: data
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: banking
+  source:
+    repoURL: https://github.com/olawalelateef9/sre2026-final-project.git
+    targetRevision: main
+    path: deploy/data
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}

@@ -1,0 +1,33 @@
+# Creates the internet-facing NLB for the Istio gateway. IAM comes from EKS Pod Identity
+# (infra/cluster/iam.tf). Pods cannot reach instance metadata (hop limit 1), so the VPC
+# is found by its Name tag and the region is set explicitly.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aws-load-balancer-controller
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+spec:
+  project: platform
+  source:
+    repoURL: https://aws.github.io/eks-charts
+    chart: aws-load-balancer-controller
+    targetRevision: 3.6.2
+    helm:
+      valuesObject:
+        clusterName: techbleat
+        region: eu-west-2
+        vpcTags:
+          Name: techbleat-vpc
+        replicaCount: 1
+        serviceAccount:
+          name: aws-load-balancer-controller
+        resources:
+          requests: {cpu: 50m, memory: 128Mi}
+          limits: {memory: 256Mi}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}

@@ -1,0 +1,19 @@
+# Keycloak identity provider, backed by its own database on RDS.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: banking
+  source:
+    repoURL: https://github.com/olawalelateef9/sre2026-final-project.git
+    targetRevision: main
+    path: deploy/keycloak
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keycloak
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}

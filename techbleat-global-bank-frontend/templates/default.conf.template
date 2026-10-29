@@ -39,6 +39,14 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
+    # Runtime settings for the browser app, rendered from environment variables at start.
+    location = /app-config.js {
+        default_type application/javascript;
+        add_header Cache-Control "no-store" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        return 200 'window.APP_CONFIG = {"keycloakUrl": "${KEYCLOAK_URL}", "keycloakRealm": "${KEYCLOAK_REALM}", "keycloakClientId": "${KEYCLOAK_CLIENT_ID}"};';
+    }
+
     # Hashed build assets never change, so they can be cached for a year.
     location /assets/ {
         add_header Cache-Control "public, max-age=31536000, immutable" always;

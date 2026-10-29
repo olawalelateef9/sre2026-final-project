@@ -73,3 +73,16 @@ def test_cannot_read_another_customers_activity(caplog):
     conn.execute.assert_not_called()
     assert "authorization_denied" in caplog.text and "user=alice" in caplog.text
     assert token not in caplog.text
+
+
+def test_kafka_mutual_tls_is_configured_from_the_environment(monkeypatch):
+    from app.main import kafka_config
+
+    assert "security.protocol" not in kafka_config()
+    monkeypatch.setenv("KAFKA_SECURITY_PROTOCOL", "SSL")
+    monkeypatch.setenv("KAFKA_SSL_CA_LOCATION", "/etc/kafka/ca/ca.crt")
+    monkeypatch.setenv("KAFKA_SSL_CERTIFICATE_LOCATION", "/etc/kafka/user/user.crt")
+    monkeypatch.setenv("KAFKA_SSL_KEY_LOCATION", "/etc/kafka/user/user.key")
+    config = kafka_config()
+    assert config["security.protocol"] == "SSL"
+    assert config["ssl.key.location"] == "/etc/kafka/user/user.key"

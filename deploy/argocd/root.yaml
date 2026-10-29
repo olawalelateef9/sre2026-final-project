@@ -1,0 +1,20 @@
+# App of apps: everything in deploy/apps is reconciled from main. Changes reach the
+# cluster only by merging to main; manual edits in the cluster are reverted (selfHeal).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/olawalelateef9/sre2026-final-project.git
+    targetRevision: main
+    path: deploy/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

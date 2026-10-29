@@ -1,0 +1,28 @@
+# Istio CRDs and cluster roles (1.30.7 supports Kubernetes 1.32-1.36).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: istio-base
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+spec:
+  project: platform
+  source:
+    repoURL: https://istio-release.storage.googleapis.com/charts
+    chart: base
+    targetRevision: 1.30.7
+    helm:
+      valuesObject:
+        defaultRevision: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: istio-system
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+  # The validating webhook's failurePolicy is patched by istiod at runtime.
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jsonPointers: [/webhooks/0/failurePolicy]

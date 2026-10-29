@@ -1,0 +1,20 @@
+# The banking application. Image digests are set by scripts/pin-images.sh; a rollback is a
+# commit that pins the previous digests.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: banking
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: banking
+  source:
+    repoURL: https://github.com/olawalelateef9/sre2026-final-project.git
+    targetRevision: main
+    path: deploy/banking
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: banking
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}

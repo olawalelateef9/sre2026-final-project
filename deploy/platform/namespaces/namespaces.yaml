@@ -1,0 +1,35 @@
+# Pod Security Admission "restricted" everywhere workloads run: non-root, no privilege
+# escalation, dropped capabilities, seccomp RuntimeDefault.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: istio-ingress
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+---
+# Banking services (Istio sidecars, strict mTLS) and the Kafka cluster (no sidecars;
+# Kafka uses its own mutual TLS and ACLs).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: banking
+  labels:
+    istio-injection: enabled
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keycloak
+  labels:
+    istio-injection: enabled
+    pod-security.kubernetes.io/enforce: restricted
+---
+# One-off administrative jobs (database setup) that hold master credentials; no sidecars
+# so Jobs complete, and egress limited by NetworkPolicy.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: banking-admin
+  labels:
+    pod-security.kubernetes.io/enforce: restricted

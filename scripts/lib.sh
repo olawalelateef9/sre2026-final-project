@@ -7,6 +7,9 @@ BOOTSTRAP_DIR="$ROOT_DIR/infra/bootstrap"
 CLUSTER_DIR="$ROOT_DIR/infra/cluster"
 # shellcheck disable=SC2034 # used by the scripts that source this file
 KUBECONFIG_FILE="$ROOT_DIR/infra/.kubeconfig"
+DOMAIN="techbleatglobalbank.duckdns.org"
+# shellcheck disable=SC2034
+TLS_BACKUP_SECRET="techbleat/tls-certificate-backup"
 
 log() { printf '\n==> %s\n' "$*"; }
 die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
@@ -38,6 +41,42 @@ load_bootstrap_outputs() {
   REGION=$(bootstrap_output region)
   [[ -n "$STATE_BUCKET" && -n "$REGION" ]] ||
     die "Bootstrap stack not applied. Run: terraform -chdir=infra/bootstrap init && terraform -chdir=infra/bootstrap apply"
+}
+
+# Prints one property of a techbleat/cluster/* secret without echoing it anywhere else.
+cluster_secret() {
+  aws secretsmanager get-secret-value --region "$REGION" --secret-id "techbleat/cluster/$1" \
+    --query SecretString --output text |
+    python -c "import json,sys; print(json.load(sys.stdin)['$2'])"
+}
+
+# Calls the DuckDNS update API with the given query (ip=... or clear=true). The token is
+# read from DUCKDNS_TOKEN and never printed.
+duckdns_update() {
+  local subdomain=${DOMAIN%%.duckdns.org} response
+  response=$(curl -fsS "https://www.duckdns.org/update?domains=$subdomain&token=$DUCKDNS_TOKEN&$1" || true)
+  [[ "$response" == "OK" ]]
+}
+
+# Waits until every Argo CD Application is Synced and Healthy, printing progress.
+wait_for_applications() {
+  local timeout=$1 waited=0 status pending
+  while true; do
+    status=$(kubectl get applications -n argocd \
+      -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.sync.status}{" "}{.status.health.status}{"\n"}{end}' 2>/dev/null || true)
+    pending=$(printf '%s\n' "$status" | awk 'NF && !($2=="Synced" && $3=="Healthy")')
+    if [[ -n "$status" && -z "$pending" ]]; then
+      log "All Argo CD applications are Synced and Healthy."
+      return 0
+    fi
+    if (( waited >= timeout )); then
+      printf '%s\n' "$pending" >&2
+      die "Applications not healthy after $((timeout / 60)) minutes. Inspect with: kubectl get applications -n argocd"
+    fi
+    printf '    waiting (%dm): %s\n' $((waited / 60)) "$(printf '%s' "$pending" | awk '{printf "%s[%s/%s] ", $1, $2, $3}')"
+    sleep 30
+    waited=$((waited + 30))
+  done
 }
 
 init_cluster_backend() {

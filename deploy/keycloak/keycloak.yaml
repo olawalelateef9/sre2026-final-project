@@ -1,0 +1,191 @@
+# Keycloak 26 in production mode. TLS terminates at the gateway; traffic inside the mesh
+# is mutual TLS. The realm itself is configured by keycloak/configure_realm.py.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: keycloak-credentials
+  namespace: keycloak
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: aws-secrets-manager
+  target:
+    name: keycloak-credentials
+    template:
+      data:
+        KC_DB_URL: "jdbc:postgresql://{{ .db_host }}:5432/keycloak?sslmode=require"
+        KC_DB_USERNAME: "{{ .db_username }}"
+        KC_DB_PASSWORD: "{{ .db_password }}"
+        KC_BOOTSTRAP_ADMIN_USERNAME: "{{ .admin_username }}"
+        KC_BOOTSTRAP_ADMIN_PASSWORD: "{{ .admin_password }}"
+  data:
+    - {secretKey: db_host, remoteRef: {key: db/keycloak, property: host}}
+    - {secretKey: db_username, remoteRef: {key: db/keycloak, property: username}}
+    - {secretKey: db_password, remoteRef: {key: db/keycloak, property: password}}
+    - {secretKey: admin_username, remoteRef: {key: keycloak/admin, property: username}}
+    - {secretKey: admin_password, remoteRef: {key: keycloak/admin, property: password}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keycloak
+  namespace: keycloak
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: keycloak
+  labels:
+    app: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      serviceAccountName: keycloak
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 0
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.8.1@sha256:a78d6b79572168cb25886b80a8b5b8d4ed4390743e3eecb810538683e209dd6b
+          args: ["start"]
+          env:
+            - {name: KC_DB, value: postgres}
+            - {name: KC_HOSTNAME, value: "https://auth.techbleatglobalbank.duckdns.org"}
+            # In-cluster callers (token, JWKS, admin API) may use the internal URL.
+            - {name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC, value: "true"}
+            - {name: KC_HTTP_ENABLED, value: "true"}
+            - {name: KC_PROXY_HEADERS, value: xforwarded}
+            - {name: KC_HEALTH_ENABLED, value: "true"}
+            - {name: KC_CACHE, value: local}
+            - {name: JAVA_OPTS_KC_HEAP, value: "-XX:MaxRAMPercentage=70"}
+          envFrom:
+            - secretRef: {name: keycloak-credentials}
+          ports:
+            - {name: http, containerPort: 8080}
+            - {name: management, containerPort: 9000}
+          startupProbe:
+            httpGet: {path: /health/started, port: management}
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: {path: /health/ready, port: management}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health/live, port: management}
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 250m, memory: 768Mi}
+            limits: {memory: 1280Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+            # Keycloak's first start optimises itself by writing to /opt/keycloak.
+            readOnlyRootFilesystem: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  selector:
+    app: keycloak
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+# Public routes: only the banking realm and static login assets. The admin console and the
+# master realm are not reachable from the internet (use kubectl port-forward).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  parentRefs:
+    - name: public
+      namespace: istio-ingress
+      sectionName: https-auth
+  hostnames: [auth.techbleatglobalbank.duckdns.org]
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /realms/banking/}
+        - path: {type: PathPrefix, value: /resources/}
+      backendRefs:
+        - {name: keycloak, port: 8080}
+---
+# Who may call which Keycloak paths over the mesh (deny anything not listed).
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  selector:
+    matchLabels:
+      app: keycloak
+  action: ALLOW
+  rules:
+    # Browsers via the public gateway: banking realm and login assets only.
+    - from:
+        - source:
+            principals: ["cluster.local/ns/istio-ingress/sa/public-istio"]
+      to:
+        - operation:
+            paths: ["/realms/banking/*", "/resources/*"]
+    # Banking APIs fetch signing keys to validate tokens.
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/banking/sa/user-service
+              - cluster.local/ns/banking/sa/transaction-service
+              - cluster.local/ns/banking/sa/activity-service
+              - cluster.local/ns/banking/sa/finance-agent
+      to:
+        - operation:
+            methods: [GET]
+            paths: ["/realms/banking/protocol/openid-connect/certs"]
+    # Only user-service provisions accounts (client credentials + user admin API).
+    - from:
+        - source:
+            principals: ["cluster.local/ns/banking/sa/user-service"]
+      to:
+        - operation:
+            paths:
+              - /realms/banking/protocol/openid-connect/token
+              - /admin/realms/banking/users
+              - /admin/realms/banking/users/*
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  podSelector:
+    matchLabels:
+      app: keycloak
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: istio-ingress}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: banking}
+      ports:
+        - {protocol: TCP, port: 8080}
+    # Kubelet health probes (rewritten by the sidecar to its status port).
+    - ports:
+        - {protocol: TCP, port: 15020}
+        - {protocol: TCP, port: 15021}

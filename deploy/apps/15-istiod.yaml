@@ -1,0 +1,51 @@
+# Istio control plane. Access logs are JSON on stdout without request or response bodies.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: istiod
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-15"
+spec:
+  project: platform
+  source:
+    repoURL: https://istio-release.storage.googleapis.com/charts
+    chart: istiod
+    targetRevision: 1.30.7
+    helm:
+      valuesObject:
+        pilot:
+          autoscaleEnabled: false
+          # Traffic redirection is done by the istio-cni node agent (10-istio-cni.yaml).
+          cni:
+            enabled: true
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 512Mi}
+        global:
+          proxy:
+            resources:
+              requests: {cpu: 20m, memory: 64Mi}
+              limits: {memory: 256Mi}
+        meshConfig:
+          accessLogFile: /dev/stdout
+          accessLogEncoding: JSON
+          # Workloads must reach RDS, ElastiCache and AWS APIs outside the mesh. Restricting
+          # egress to REGISTRY_ONLY with ServiceEntries is a documented hardening step.
+          outboundTrafficPolicy:
+            mode: ALLOW_ANY
+          defaultConfig:
+            holdApplicationUntilProxyStarts: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: istio-system
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jsonPointers: [/webhooks/0/failurePolicy]
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions: [".webhooks[]?.clientConfig.caBundle"]

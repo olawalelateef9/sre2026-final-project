@@ -1,0 +1,9 @@
+# Mesh-wide: sidecars accept only mutual-TLS traffic from other mesh workloads.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: istio-system
+spec:
+  mtls:
+    mode: STRICT

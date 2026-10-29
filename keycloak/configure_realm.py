@@ -19,6 +19,8 @@ Environment:
     FRONTEND_URL              exact frontend origin (default http://localhost:3000)
     KEYCLOAK_SSL_REQUIRED     external (local) or all (deployed); default external
     KEYCLOAK_VERIFY_EMAIL     true once SMTP is configured; default false
+    KEYCLOAK_PROVISIONER_SECRET  optional: set banking-provisioner's client secret to this
+                              value (deployed environments keep it in Secrets Manager)
 
 Needs only the Python 3.9+ standard library. Secrets are never printed.
 """
@@ -255,7 +257,10 @@ def main():
         print("Realm does not exist yet; run without --dry-run to create it.")
         return
     apply_roles(kc, config["roles"])
+    provisioner_secret = os.getenv("KEYCLOAK_PROVISIONER_SECRET", "")
     for client in config["clients"]:
+        if client["clientId"] == "banking-provisioner" and provisioner_secret:
+            client = {**client, "secret": provisioner_secret}
         client_uuid = apply_client(kc, client)
         if client_uuid:
             apply_client_extras(kc, client_uuid, client)

@@ -93,14 +93,3 @@ resource "aws_iam_role_policy_attachment" "ebs_csi" {
   role       = aws_iam_role.ebs_csi.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
-
-# ---- Static public IP for the ingress load balancer ----------------------------------------
-# DuckDNS can only hold an IP address, so the Network Load Balancer gets an Elastic IP
-# (attached by the AWS Load Balancer Controller via a Service annotation).
-
-resource "aws_eip" "ingress" {
-  domain = "vpc"
-  tags = {
-    Name = "${var.name}-ingress"
-  }
-}

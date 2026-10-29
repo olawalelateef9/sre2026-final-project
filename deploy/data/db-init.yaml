@@ -1,0 +1,172 @@
+# Creates the schema and one least-privilege database role per service on RDS.
+# Only this Job sees the master credentials; it runs in banking-admin, which has no
+# ingress and may only reach DNS and PostgreSQL. The SQL is idempotent and reruns on
+# every sync of the data application.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: db-init-credentials
+  namespace: banking-admin
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: aws-secrets-manager
+  target:
+    name: db-init-credentials
+  data:
+    - {secretKey: PGHOST, remoteRef: {key: db/master, property: host}}
+    - {secretKey: PGUSER, remoteRef: {key: db/master, property: username}}
+    - {secretKey: PGPASSWORD, remoteRef: {key: db/master, property: password}}
+    - {secretKey: USER_SERVICE_PASSWORD, remoteRef: {key: db/user_service, property: password}}
+    - {secretKey: TRANSACTION_SERVICE_PASSWORD, remoteRef: {key: db/transaction_service, property: password}}
+    - {secretKey: ACTIVITY_SERVICE_PASSWORD, remoteRef: {key: db/activity_service, property: password}}
+    - {secretKey: KEYCLOAK_PASSWORD, remoteRef: {key: db/keycloak, property: password}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-init-sql
+  namespace: banking-admin
+data:
+  roles.sql: |
+    -- Roles: one login per service, created once, password always reset to the current value.
+    SELECT format('CREATE ROLE %I LOGIN', r)
+    FROM unnest(ARRAY['user_service', 'transaction_service', 'activity_service', 'keycloak']) AS r
+    WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) \gexec
+    ALTER ROLE user_service PASSWORD :'user_service_password';
+    ALTER ROLE transaction_service PASSWORD :'transaction_service_password';
+    ALTER ROLE activity_service PASSWORD :'activity_service_password';
+    ALTER ROLE keycloak PASSWORD :'keycloak_password';
+
+    -- Keycloak gets its own database that it owns; nothing else can connect to it.
+    GRANT keycloak TO CURRENT_USER WITH SET TRUE;
+    SELECT 'CREATE DATABASE keycloak OWNER keycloak'
+    WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'keycloak') \gexec
+    REVOKE ALL ON DATABASE keycloak FROM PUBLIC;
+
+    REVOKE ALL ON DATABASE bankingdb FROM PUBLIC;
+    GRANT CONNECT ON DATABASE bankingdb TO user_service, transaction_service, activity_service;
+  schema.sql: |
+    -- Banking schema (same as techbleat-global-bank-backend/db-init/init.sql), owned by the
+    -- admin role; services get only the table rights they use.
+    CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR(50) PRIMARY KEY,
+        full_name VARCHAR(100) NOT NULL,
+        email VARCHAR(120) UNIQUE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS accounts (
+        user_id VARCHAR(50) PRIMARY KEY,
+        balance NUMERIC(12,2) NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS transactions (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL,
+        transaction_type VARCHAR(30) NOT NULL,
+        amount NUMERIC(12,2) NOT NULL,
+        reference VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS activities (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL,
+        activity_type VARCHAR(50) NOT NULL,
+        description TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    REVOKE ALL ON SCHEMA public FROM PUBLIC;
+    GRANT USAGE ON SCHEMA public TO user_service, transaction_service, activity_service;
+
+    -- user-service: registration and the caller's own profile
+    GRANT SELECT, INSERT ON users TO user_service;
+    GRANT INSERT ON accounts TO user_service;
+    -- transaction-service: balances and transaction history
+    GRANT SELECT, UPDATE ON accounts TO transaction_service;
+    GRANT SELECT, INSERT ON transactions TO transaction_service;
+    GRANT USAGE ON SEQUENCE transactions_id_seq TO transaction_service;
+    -- activity-service: activity feed written from Kafka events
+    GRANT SELECT, INSERT ON activities TO activity_service;
+    GRANT USAGE ON SEQUENCE activities_id_seq TO activity_service;
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-init
+  namespace: banking-admin
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app: db-init
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: psql
+          image: postgres:17.11-alpine3.24@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              psql -X -v ON_ERROR_STOP=1 -d bankingdb \
+                -v user_service_password="$USER_SERVICE_PASSWORD" \
+                -v transaction_service_password="$TRANSACTION_SERVICE_PASSWORD" \
+                -v activity_service_password="$ACTIVITY_SERVICE_PASSWORD" \
+                -v keycloak_password="$KEYCLOAK_PASSWORD" \
+                -f /sql/roles.sql
+              psql -X -v ON_ERROR_STOP=1 -d bankingdb -f /sql/schema.sql
+              echo "Database roles and schema are up to date."
+          env:
+            - {name: PGSSLMODE, value: require}
+            - {name: PGDATABASE, value: bankingdb}
+            - {name: HOME, value: /tmp}
+          envFrom:
+            - secretRef: {name: db-init-credentials}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 64Mi}
+          volumeMounts:
+            - {name: sql, mountPath: /sql, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: sql
+          configMap: {name: db-init-sql}
+        - name: tmp
+          emptyDir: {}
+---
+# No inbound traffic; outbound only to DNS and PostgreSQL inside the VPC.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: db-init
+  namespace: banking-admin
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    - to:
+        - ipBlock: {cidr: 10.40.0.0/16}
+      ports:
+        - {protocol: TCP, port: 5432}

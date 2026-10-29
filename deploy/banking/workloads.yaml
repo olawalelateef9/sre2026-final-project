@@ -1,0 +1,342 @@
+# Banking services. Every pod: non-root, read-only root filesystem, no capabilities,
+# RuntimeDefault seccomp, no service account token, resource limits, health probes.
+# Images are immutable digests published by CI; scripts/pin-images.sh <commit> updates them.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: banking
+  labels: {app: frontend}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: frontend}
+  template:
+    metadata:
+      labels: {app: frontend}
+    spec:
+      serviceAccountName: frontend
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: frontend
+          image: ghcr.io/olawalelateef9/techbleat-frontend@sha256:d09629d7d7e1cbb6238a12b9947d0cd568ea00bbd0030f21744ac1eadf1d56ca # source: de6312c7c500da0dece11619847aaad201c9a154
+          env:
+            - {name: KEYCLOAK_ORIGIN, value: "https://auth.techbleatglobalbank.duckdns.org"}
+            - {name: KEYCLOAK_URL, value: "https://auth.techbleatglobalbank.duckdns.org"}
+            - {name: KEYCLOAK_REALM, value: banking}
+            - {name: KEYCLOAK_CLIENT_ID, value: banking-frontend}
+            - {name: USER_SERVICE_UPSTREAM, value: "user-service.banking.svc.cluster.local:8000"}
+            - {name: TRANSACTION_SERVICE_UPSTREAM, value: "transaction-service.banking.svc.cluster.local:8080"}
+            - {name: ACTIVITY_SERVICE_UPSTREAM, value: "activity-service.banking.svc.cluster.local:8001"}
+            - {name: FINANCE_AGENT_UPSTREAM, value: "finance-agent.banking.svc.cluster.local:9001"}
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /frontend-health, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /frontend-health, port: http}
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 25m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            # nginx renders its config from templates at start and needs scratch space.
+            - {name: nginx-conf, mountPath: /etc/nginx/conf.d}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - {name: nginx-conf, emptyDir: {}}
+        - {name: tmp, emptyDir: {}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: banking
+  labels: {app: user-service}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: user-service}
+  template:
+    metadata:
+      labels: {app: user-service}
+    spec:
+      serviceAccountName: user-service
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: user-service
+          image: ghcr.io/olawalelateef9/techbleat-user-service@sha256:d1199e6cd53af621acc97ca88958720546f644b8a2100d7a4e83655dd9a07e34 # source: de6312c7c500da0dece11619847aaad201c9a154
+          env:
+            - {name: FRONTEND_ORIGIN, value: "https://techbleatglobalbank.duckdns.org"}
+            - {name: KEYCLOAK_URL, value: "http://keycloak.keycloak.svc.cluster.local:8080"}
+            - {name: KEYCLOAK_REALM, value: banking}
+            - {name: KEYCLOAK_ADMIN_CLIENT_ID, value: banking-provisioner}
+            - {name: KEYCLOAK_ISSUER, value: "https://auth.techbleatglobalbank.duckdns.org/realms/banking"}
+            - {name: KEYCLOAK_JWK_SET_URI, value: "http://keycloak.keycloak.svc.cluster.local:8080/realms/banking/protocol/openid-connect/certs"}
+            - {name: KEYCLOAK_AUDIENCE, value: banking-api}
+          envFrom:
+            - secretRef: {name: user-service-config}
+          ports:
+            - {name: http, containerPort: 8000}
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 25m, memory: 96Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: transaction-service
+  namespace: banking
+  labels: {app: transaction-service}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: transaction-service}
+  template:
+    metadata:
+      labels: {app: transaction-service}
+    spec:
+      serviceAccountName: transaction-service
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: transaction-service
+          image: ghcr.io/olawalelateef9/techbleat-transaction-service@sha256:a690a02d9e150723440056f40bfeb26e77c7c259f4bb45b0d419d6f1ada64bad # source: de6312c7c500da0dece11619847aaad201c9a154
+          env:
+            - {name: SERVER_PORT, value: "8080"}
+            - {name: FRONTEND_ORIGIN, value: "https://techbleatglobalbank.duckdns.org"}
+            - {name: KEYCLOAK_ISSUER, value: "https://auth.techbleatglobalbank.duckdns.org/realms/banking"}
+            - {name: KEYCLOAK_JWK_SET_URI, value: "http://keycloak.keycloak.svc.cluster.local:8080/realms/banking/protocol/openid-connect/certs"}
+            - {name: KEYCLOAK_AUDIENCE, value: banking-api}
+            # Schema and grants are owned by the db-init Job; the service only reads/writes rows.
+            - {name: SPRING_JPA_HIBERNATE_DDL_AUTO, value: none}
+            - {name: REDIS_PORT, value: "6379"}
+            - {name: REDIS_SSL, value: "true"}
+            # Kafka over mutual TLS with this service's Strimzi client certificate.
+            - {name: KAFKA_BOOTSTRAP_SERVERS, value: "banking-kafka-kafka-bootstrap.banking.svc:9093"}
+            - {name: SPRING_KAFKA_ADMIN_AUTO_CREATE, value: "false"}
+            - {name: SPRING_KAFKA_SECURITY_PROTOCOL, value: SSL}
+            - {name: SPRING_KAFKA_SSL_TRUST_STORE_TYPE, value: PKCS12}
+            - {name: SPRING_KAFKA_SSL_TRUST_STORE_LOCATION, value: "file:/etc/kafka/ca/ca.p12"}
+            - name: SPRING_KAFKA_SSL_TRUST_STORE_PASSWORD
+              valueFrom: {secretKeyRef: {name: banking-kafka-cluster-ca-cert, key: ca.password}}
+            - {name: SPRING_KAFKA_SSL_KEY_STORE_TYPE, value: PKCS12}
+            - {name: SPRING_KAFKA_SSL_KEY_STORE_LOCATION, value: "file:/etc/kafka/user/user.p12"}
+            - name: SPRING_KAFKA_SSL_KEY_STORE_PASSWORD
+              valueFrom: {secretKeyRef: {name: transaction-service, key: user.password}}
+          envFrom:
+            - secretRef: {name: transaction-service-config}
+          ports:
+            - {name: http, containerPort: 8080}
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 100m, memory: 384Mi}
+            limits: {memory: 640Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: kafka-ca, mountPath: /etc/kafka/ca, readOnly: true}
+            - {name: kafka-user, mountPath: /etc/kafka/user, readOnly: true}
+      volumes:
+        - {name: tmp, emptyDir: {}}
+        - name: kafka-ca
+          secret: {secretName: banking-kafka-cluster-ca-cert}
+        - name: kafka-user
+          secret: {secretName: transaction-service}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activity-service
+  namespace: banking
+  labels: {app: activity-service}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: activity-service}
+  template:
+    metadata:
+      labels: {app: activity-service}
+    spec:
+      serviceAccountName: activity-service
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: activity-service
+          image: ghcr.io/olawalelateef9/techbleat-activity-service@sha256:c830eed6b2f175c34eaa80ee66e34b97020c6e1ea7a1bac8a148cd2def3c3cd8 # source: de6312c7c500da0dece11619847aaad201c9a154
+          env:
+            - {name: FRONTEND_ORIGIN, value: "https://techbleatglobalbank.duckdns.org"}
+            - {name: KEYCLOAK_ISSUER, value: "https://auth.techbleatglobalbank.duckdns.org/realms/banking"}
+            - {name: KEYCLOAK_JWK_SET_URI, value: "http://keycloak.keycloak.svc.cluster.local:8080/realms/banking/protocol/openid-connect/certs"}
+            - {name: KEYCLOAK_AUDIENCE, value: banking-api}
+            - {name: KAFKA_BOOTSTRAP_SERVERS, value: "banking-kafka-kafka-bootstrap.banking.svc:9093"}
+            - {name: KAFKA_SECURITY_PROTOCOL, value: SSL}
+            - {name: KAFKA_SSL_CA_LOCATION, value: /etc/kafka/ca/ca.crt}
+            - {name: KAFKA_SSL_CERTIFICATE_LOCATION, value: /etc/kafka/user/user.crt}
+            - {name: KAFKA_SSL_KEY_LOCATION, value: /etc/kafka/user/user.key}
+          envFrom:
+            - secretRef: {name: activity-service-config}
+          ports:
+            - {name: http, containerPort: 8001}
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 25m, memory: 96Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: kafka-ca, mountPath: /etc/kafka/ca, readOnly: true}
+            - {name: kafka-user, mountPath: /etc/kafka/user, readOnly: true}
+      volumes:
+        - name: kafka-ca
+          secret: {secretName: banking-kafka-cluster-ca-cert}
+        - name: kafka-user
+          secret: {secretName: activity-service}
+---
+# FinanceAgent is deployed disabled (0 replicas): no approved model provider credentials
+# are configured for this environment. Its API-level controls are covered by tests.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finance-agent
+  namespace: banking
+  labels: {app: finance-agent}
+spec:
+  replicas: 0
+  selector:
+    matchLabels: {app: finance-agent}
+  template:
+    metadata:
+      labels: {app: finance-agent}
+    spec:
+      serviceAccountName: finance-agent
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: finance-agent
+          image: ghcr.io/olawalelateef9/techbleat-finance-agent@sha256:14fab72f188e0237fc4d7da266236b5e24a4d5ac904aeb3d2026f3dcff023c39 # source: de6312c7c500da0dece11619847aaad201c9a154
+          env:
+            - {name: KEYCLOAK_ISSUER, value: "https://auth.techbleatglobalbank.duckdns.org/realms/banking"}
+            - {name: KEYCLOAK_URL, value: "http://keycloak.keycloak.svc.cluster.local:8080"}
+            - {name: KEYCLOAK_REALM, value: banking}
+            - {name: KEYCLOAK_AUDIENCE, value: banking-api}
+            - {name: TRANSACTION_API_URL, value: "http://transaction-service.banking.svc.cluster.local:8080"}
+          ports:
+            - {name: http, containerPort: 9001}
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+          resources:
+            requests: {cpu: 25m, memory: 96Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: frontend, namespace: banking}
+spec:
+  selector: {app: frontend}
+  ports: [{name: http, port: 80, targetPort: http}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: user-service, namespace: banking}
+spec:
+  selector: {app: user-service}
+  ports: [{name: http, port: 8000, targetPort: http}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: transaction-service, namespace: banking}
+spec:
+  selector: {app: transaction-service}
+  ports: [{name: http, port: 8080, targetPort: http}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: activity-service, namespace: banking}
+spec:
+  selector: {app: activity-service}
+  ports: [{name: http, port: 8001, targetPort: http}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: finance-agent, namespace: banking}
+spec:
+  selector: {app: finance-agent}
+  ports: [{name: http, port: 9001, targetPort: http}]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: frontend
+  namespace: banking
+spec:
+  parentRefs:
+    - name: public
+      namespace: istio-ingress
+      sectionName: https-app
+  hostnames: [techbleatglobalbank.duckdns.org]
+  rules:
+    - backendRefs:
+        - {name: frontend, port: 80}

@@ -1,0 +1,122 @@
+# Single-node KRaft Kafka for transaction events. Self-managed in the cluster (MSK was not
+# chosen, to keep each session cheap and quick to create and destroy); hardened instead:
+#   - TLS-only listener with client-certificate authentication (no plaintext port)
+#   - simple ACL authorization: each service may only use its own topic/group
+#   - Strimzi-generated NetworkPolicy admits only the two client services
+#   - encrypted gp3 storage; Pod Security "restricted"
+# Single replica is a documented limitation of the sandbox, not a production setting.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: dual-role
+  namespace: banking
+  labels:
+    strimzi.io/cluster: banking-kafka
+spec:
+  replicas: 1
+  roles: [controller, broker]
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 5Gi
+        class: gp3-encrypted
+        deleteClaim: true
+        kraftMetadata: shared
+  resources:
+    requests: {cpu: 100m, memory: 1Gi}
+    limits: {memory: 1536Mi}
+  jvmOptions:
+    -Xms: 512m
+    -Xmx: 768m
+  template:
+    pod:
+      metadata:
+        annotations:
+          sidecar.istio.io/inject: "false"
+---
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: banking-kafka
+  namespace: banking
+spec:
+  kafka:
+    version: 4.2.0
+    listeners:
+      - name: tls
+        port: 9093
+        type: internal
+        tls: true
+        authentication:
+          type: tls
+        networkPolicyPeers:
+          - podSelector:
+              matchLabels: {app: transaction-service}
+          - podSelector:
+              matchLabels: {app: activity-service}
+    authorization:
+      type: simple
+    config:
+      auto.create.topics.enable: false
+      offsets.topic.replication.factor: 1
+      transaction.state.log.replication.factor: 1
+      transaction.state.log.min.isr: 1
+      default.replication.factor: 1
+      min.insync.replicas: 1
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}
+    template:
+      pod:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: banking-transactions
+  namespace: banking
+  labels:
+    strimzi.io/cluster: banking-kafka
+spec:
+  partitions: 3
+  replicas: 1
+---
+# Producer: may write events, nothing else.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaUser
+metadata:
+  name: transaction-service
+  namespace: banking
+  labels:
+    strimzi.io/cluster: banking-kafka
+spec:
+  authentication:
+    type: tls
+  authorization:
+    type: simple
+    acls:
+      - resource: {type: topic, name: banking-transactions, patternType: literal}
+        operations: [Write, Describe]
+---
+# Consumer: may read events with its own consumer group, nothing else.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaUser
+metadata:
+  name: activity-service
+  namespace: banking
+  labels:
+    strimzi.io/cluster: banking-kafka
+spec:
+  authentication:
+    type: tls
+  authorization:
+    type: simple
+    acls:
+      - resource: {type: topic, name: banking-transactions, patternType: literal}
+        operations: [Read, Describe]
+      - resource: {type: group, name: activity-service-group, patternType: literal}
+        operations: [Read]

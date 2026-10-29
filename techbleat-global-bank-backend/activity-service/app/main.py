@@ -17,6 +17,8 @@ logger = logging.getLogger("activity-service")
 DATABASE_URL = os.getenv("DATABASE_URL")
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092")
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
+KAFKA_GROUP_ID = os.getenv("KAFKA_GROUP_ID", "activity-service-group")
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "banking-transactions")
 
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL is required")
@@ -33,18 +35,32 @@ app.add_middleware(
 )
 
 
+def kafka_config():
+    config = {
+        "bootstrap.servers": KAFKA_BOOTSTRAP_SERVERS,
+        "group.id": KAFKA_GROUP_ID,
+        "auto.offset.reset": "earliest",
+    }
+    # Mutual TLS to the in-cluster Kafka (Strimzi): cluster CA plus this service's client
+    # certificate. Unset locally, where Compose Kafka is plaintext.
+    if os.getenv("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT").upper() == "SSL":
+        config.update(
+            {
+                "security.protocol": "SSL",
+                "ssl.ca.location": os.environ["KAFKA_SSL_CA_LOCATION"],
+                "ssl.certificate.location": os.environ["KAFKA_SSL_CERTIFICATE_LOCATION"],
+                "ssl.key.location": os.environ["KAFKA_SSL_KEY_LOCATION"],
+            }
+        )
+    return config
+
+
 def kafka_consumer_loop():
     consumer = None
     while consumer is None:
         try:
-            consumer = Consumer(
-                {
-                    "bootstrap.servers": KAFKA_BOOTSTRAP_SERVERS,
-                    "group.id": "activity-service-group",
-                    "auto.offset.reset": "earliest",
-                }
-            )
-            consumer.subscribe(["banking-transactions"])
+            consumer = Consumer(kafka_config())
+            consumer.subscribe([KAFKA_TOPIC])
         except Exception as error:
             logger.warning("kafka_consumer_start_failed error=%s", type(error).__name__)
             time.sleep(3)
