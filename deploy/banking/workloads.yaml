@@ -335,7 +335,7 @@ spec:
   parentRefs:
     - name: public
       namespace: istio-ingress
-      sectionName: https-app
+      sectionName: https
   hostnames: [techbleatglobalbank.duckdns.org]
   rules:
     - backendRefs:

@@ -116,7 +116,7 @@ spec:
   parentRefs:
     - name: public
       namespace: istio-ingress
-      sectionName: https-auth
+      sectionName: https
   hostnames: [auth.techbleatglobalbank.duckdns.org]
   rules:
     - matches:

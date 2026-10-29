@@ -25,10 +25,13 @@ spec:
       port: 80
       allowedRoutes:
         namespaces: {from: Same}
-    - name: https-app
+    # One HTTPS listener for both hostnames. Both share a certificate and IP, so browsers
+    # reuse one HTTP/2 connection for both (connection coalescing); separate per-hostname
+    # listeners pinned each connection to one host's routes and returned 404 for the other.
+    # Each HTTPRoute still claims only its own hostname, and only these namespaces may attach.
+    - name: https
       protocol: HTTPS
       port: 443
-      hostname: techbleatglobalbank.duckdns.org
       tls:
         mode: Terminate
         certificateRefs: [{name: bank-tls}]
@@ -36,19 +39,8 @@ spec:
         namespaces:
           from: Selector
           selector:
-            matchLabels: {kubernetes.io/metadata.name: banking}
-    - name: https-auth
-      protocol: HTTPS
-      port: 443
-      hostname: auth.techbleatglobalbank.duckdns.org
-      tls:
-        mode: Terminate
-        certificateRefs: [{name: bank-tls}]
-      allowedRoutes:
-        namespaces:
-          from: Selector
-          selector:
-            matchLabels: {kubernetes.io/metadata.name: keycloak}
+            matchExpressions:
+              - {key: kubernetes.io/metadata.name, operator: In, values: [banking, keycloak]}
 ---
 # Overrides for the gateway Deployment that Istio generates. The Coraza WAF loads the
 # OWASP Core Rule Set into every Envoy worker, which needs far more memory than the
