@@ -1,7 +1,8 @@
 # Web application firewall at the gateway: Coraza with the OWASP Core Rule Set (paranoia
 # level 1, anomaly scoring, blocking). This stands in for the Cloudflare WAF, which cannot
-# front a DuckDNS subdomain. Image pinned by digest; requests fail closed if the plugin
-# cannot load.
+# front a DuckDNS subdomain. The module is pinned by the SHA-256 of the Wasm binary itself
+# (Istio verifies the downloaded bytes); if it cannot load or does not match, Istio fails
+# closed and the gateway denies all requests rather than serving without a WAF.
 apiVersion: extensions.istio.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -12,7 +13,8 @@ spec:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: public
-  url: oci://ghcr.io/corazawaf/coraza-proxy-wasm:0.6.0@sha256:d66f944831428ea27039207fa4019bea55f9ea0a876d7b0dc8cc7c9e385fa4b1
+  url: oci://ghcr.io/corazawaf/coraza-proxy-wasm:0.6.0
+  sha256: 65d6009b9da2e8965e592a08b74a86725435fc01aa39c756dce0bd5ea64b3f4e
   imagePullPolicy: IfNotPresent
   phase: AUTHN
   failStrategy: FAIL_CLOSE
