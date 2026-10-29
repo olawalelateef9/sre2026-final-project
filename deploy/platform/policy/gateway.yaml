@@ -82,9 +82,11 @@ spec:
   dnsNames:
     - techbleatglobalbank.duckdns.org
     - auth.techbleatglobalbank.duckdns.org
+  # Production: duckdns.org is HSTS-preloaded, so browsers reject the untrusted staging
+  # certificate outright. scripts/down.sh keeps this certificate between sessions.
   issuerRef:
     kind: ClusterIssuer
-    name: letsencrypt-staging
+    name: letsencrypt-production
   privateKey:
     algorithm: ECDSA
     size: 256
