@@ -25,7 +25,11 @@ server {
     add_header Cross-Origin-Opener-Policy "same-origin" always;
 
     proxy_http_version 1.1;
-    proxy_set_header Host $host;
+    # Host must name the upstream service: the Istio sidecar routes (and applies mTLS) by
+    # Host, so the public hostname would bypass the mesh route and be rejected by the
+    # service's strict-mTLS sidecar. The public name travels in X-Forwarded-Host.
+    proxy_set_header Host $proxy_host;
+    proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
