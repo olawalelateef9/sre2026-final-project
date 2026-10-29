@@ -10,6 +10,8 @@ KUBECONFIG_FILE="$ROOT_DIR/infra/.kubeconfig"
 DOMAIN="techbleatglobalbank.duckdns.org"
 # shellcheck disable=SC2034
 TLS_BACKUP_SECRET="techbleat/tls-certificate-backup"
+# shellcheck disable=SC2034
+DEMO_USERS_SECRET="techbleat/demo-users"
 
 # On Windows (Git Bash) Terraform runs in a Linux container: antivirus has repeatedly
 # quarantined provider plugins (terraform-provider-cloudinit) while Terraform was running.

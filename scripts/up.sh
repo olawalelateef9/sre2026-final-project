@@ -121,6 +121,41 @@ KEYCLOAK_ADMIN_PASSWORD=$(cluster_secret keycloak/admin password) \
 KEYCLOAK_PROVISIONER_SECRET=$(cluster_secret keycloak/provisioner client_secret) \
   python "$ROOT_DIR/keycloak/configure_realm.py"
 
+# ---- 7. Demo customers (synthetic data, new passwords every session) -----------------------
+
+log "Seeding demo customers alice and bob..."
+demo_file=$(mktemp)
+chmod 600 "$demo_file"
+python - > "$demo_file" <<'EOF'
+import json, secrets
+users = [
+    {"id": "alice", "full_name": "Alice Demo", "email": "alice@example.com"},
+    {"id": "bob", "full_name": "Bob Demo", "email": "bob@example.com"},
+]
+for user in users:
+    user["password"] = "Demo-" + secrets.token_urlsafe(18)
+print(json.dumps(users))
+EOF
+demo_path=$demo_file
+command -v cygpath >/dev/null 2>&1 && demo_path=$(cygpath -m "$demo_file")
+# Store first, so the credentials are never lost; outside techbleat/cluster/* so the
+# cluster itself cannot read them.
+if aws secretsmanager describe-secret --region "$REGION" --secret-id "$DEMO_USERS_SECRET" >/dev/null 2>&1; then
+  aws secretsmanager put-secret-value --region "$REGION" --secret-id "$DEMO_USERS_SECRET" \
+    --secret-string "file://$demo_path" >/dev/null
+else
+  aws secretsmanager create-secret --region "$REGION" --name "$DEMO_USERS_SECRET" \
+    --description "Demo customer credentials for the current session (synthetic data)" \
+    --secret-string "file://$demo_path" >/dev/null
+fi
+APP_URL="https://$DOMAIN" \
+KEYCLOAK_URL=http://localhost:18080 \
+KEYCLOAK_ADMIN_USERNAME=$(cluster_secret keycloak/admin username) \
+KEYCLOAK_ADMIN_PASSWORD=$(cluster_secret keycloak/admin password) \
+DEMO_USERS=$(cat "$demo_file") \
+  python "$ROOT_DIR/keycloak/seed_demo_users.py"
+rm -f "$demo_file"
+
 kill $forward_pid 2>/dev/null || true
 trap - EXIT
 
@@ -131,6 +166,7 @@ cat <<EOF
 
   App:        https://$DOMAIN
   Keycloak:   https://auth.$DOMAIN  (admin console: kubectl port-forward -n keycloak svc/keycloak 18080:8080)
+  Demo users: alice, bob. Passwords: aws secretsmanager get-secret-value --region $REGION --secret-id $DEMO_USERS_SECRET --query SecretString --output text
   Argo CD:    kubectl port-forward -n argocd svc/argocd-server 8443:443  -> https://localhost:8443
               admin password: kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
   kubectl:    export KUBECONFIG="$KUBECONFIG_FILE"

@@ -68,8 +68,17 @@ You can run that check at any time.
 | Argo CD | `kubectl port-forward -n argocd svc/argocd-server 8443:443`, then https://localhost:8443. The password is in the `argocd-initial-admin-secret` Secret. |
 | kubectl | `export KUBECONFIG=infra/.kubeconfig` (written by `up.sh`) |
 
-Demo users register in the app, then an administrator assigns `banking-customer`
-(and `banking-transact` to move money) in the Keycloak admin console.
+Every `up.sh` seeds two demo customers, `alice` and `bob`, with synthetic data. They are
+registered through the public API, given `banking-customer` and `banking-transact`, and
+issued new random passwords each session. The passwords are stored in Secrets Manager,
+outside the cluster's readable prefix:
+
+```sh
+aws secretsmanager get-secret-value --region eu-west-2 --secret-id techbleat/demo-users   --query SecretString --output text
+```
+
+The data is deleted with the database at `down.sh`. Other users register in the app; an
+administrator then assigns roles in the Keycloak admin console.
 
 ## TLS certificate: staging, then production
 
