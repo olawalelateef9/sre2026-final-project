@@ -8,6 +8,10 @@ metadata:
 spec:
   gatewayClassName: istio
   infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: public-gateway-options
     annotations:
       service.beta.kubernetes.io/aws-load-balancer-type: external
       service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
@@ -45,6 +49,28 @@ spec:
           from: Selector
           selector:
             matchLabels: {kubernetes.io/metadata.name: keycloak}
+---
+# Overrides for the gateway Deployment that Istio generates. The Coraza WAF loads the
+# OWASP Core Rule Set into every Envoy worker, which needs far more memory than the
+# mesh-wide proxy default (256Mi): the gateway was OOM-killed with it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: public-gateway-options
+  namespace: istio-ingress
+data:
+  deployment: |
+    spec:
+      template:
+        spec:
+          containers:
+            - name: istio-proxy
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 512Mi
+                limits:
+                  memory: 1536Mi
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
