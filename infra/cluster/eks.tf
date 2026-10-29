@@ -27,6 +27,20 @@ module "eks" {
   # Sandbox: allow `down` to delete the cluster.
   deletion_protection = false
 
+  # The control plane calls admission webhooks on pod IPs. The module already opens the
+  # common webhook ports; Istio's sidecar injector and config validation listen on 15017,
+  # without which pod creation in injected namespaces times out.
+  node_security_group_additional_rules = {
+    istio_webhook_from_control_plane = {
+      description                   = "Istio sidecar injection and validation webhooks"
+      protocol                      = "tcp"
+      from_port                     = 15017
+      to_port                       = 15017
+      type                          = "ingress"
+      source_cluster_security_group = true
+    }
+  }
+
   addons = {
     vpc-cni = {
       before_compute = true
