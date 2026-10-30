@@ -75,9 +75,21 @@ print(json.dumps({'apiVersion': 'v1', 'kind': 'Secret', 'type': s['type'], 'meta
     # A volume cannot be released while a pod mounts it, so remove the workloads first.
     # kube-system is kept: it runs the EBS CSI driver and load balancer controller,
     # which must stay up to delete the AWS resources behind volumes and Services.
+    # Workload namespaces go first, while the controllers that own their resources (and
+    # those controllers' admission webhooks) are still running; deleting them together
+    # left ExternalSecrets blocked on a webhook whose Service was already gone. Strimzi
+    # topic/user finalizers are dropped up front: the brokers are being destroyed anyway.
     log "Deleting application namespaces and workloads..."
+    controllers='external-secrets|strimzi|cert-manager|istio-system'
+    kubectl get kafkatopics,kafkausers -A -o jsonpath='{range .items[*]}{.kind} {.metadata.namespace} {.metadata.name}{"\n"}{end}' 2>/dev/null |
+      while read -r kind ns name; do
+        kubectl patch "$kind" "$name" -n "$ns" --type=merge -p '{"metadata":{"finalizers":null}}' >/dev/null || true
+      done
     kubectl get namespaces -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' |
-      grep -vxE 'kube-system|kube-public|kube-node-lease|default' |
+      grep -vxE "kube-system|kube-public|kube-node-lease|default|$controllers" |
+      xargs -r kubectl delete namespace --wait=true --timeout=10m || true
+    kubectl get namespaces -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' |
+      grep -xE "$controllers" |
       xargs -r kubectl delete namespace --wait=true --timeout=10m || true
     kubectl delete statefulsets,deployments,daemonsets,jobs,pods --all -n default --wait=true --timeout=5m || true
 
