@@ -9,7 +9,8 @@ locals {
   secret_prefix = "techbleat/cluster"
 
   # One least-privilege database role per service; grants are applied by the db-init Job.
-  db_roles = ["user_service", "transaction_service", "activity_service", "keycloak"]
+  # Keycloak has its own database instance (identity.tf).
+  db_roles = ["user_service", "transaction_service", "activity_service"]
 }
 
 # ---- Passwords --------------------------------------------------------------------------
@@ -27,11 +28,6 @@ resource "random_password" "db_role" {
 
 resource "random_password" "valkey_auth" {
   length  = 48
-  special = false
-}
-
-resource "random_password" "keycloak_admin" {
-  length  = 32
   special = false
 }
 
@@ -159,7 +155,7 @@ locals {
       for role in local.db_roles : "db/${role}" => {
         host     = aws_db_instance.postgres.address
         port     = tostring(aws_db_instance.postgres.port)
-        dbname   = role == "keycloak" ? "keycloak" : "bankingdb"
+        dbname   = "bankingdb"
         username = role
         password = random_password.db_role[role].result
       }
@@ -177,9 +173,10 @@ locals {
         port       = "6379"
         auth_token = random_password.valkey_auth.result
       }
-      "keycloak/admin" = {
-        username = "admin"
-        password = random_password.keycloak_admin.result
+      # Public certificate of the identity platform's private CA, so in-cluster callers
+      # can verify Keycloak's TLS. The CA key never leaves Terraform state.
+      "keycloak/ca" = {
+        ca_crt = tls_self_signed_cert.identity_ca.cert_pem
       }
       "keycloak/provisioner" = {
         client_secret = random_password.keycloak_provisioner.result

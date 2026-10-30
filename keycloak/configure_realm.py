@@ -33,6 +33,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+import ssl
 from pathlib import Path
 
 CONFIG_FILE = Path(__file__).with_name("banking-realm.json")
@@ -45,8 +46,15 @@ SETTINGS_DEFAULTS = {
 CLIENT_EXTRAS = ("realmRoleScope", "clientRoleScope", "serviceAccountClientRoles", "protocolMappers")
 
 
+def _ssl_context():
+    """Trusts KEYCLOAK_CA_FILE (the identity platform's private CA) when set."""
+    ca_file = os.getenv("KEYCLOAK_CA_FILE")
+    return ssl.create_default_context(cafile=ca_file) if ca_file else None
+
+
 class KeycloakAdmin:
     def __init__(self, base_url, realm, dry_run):
+        self.context = _ssl_context()
         self.base_url = base_url.rstrip("/")
         self.realm = realm
         self.dry_run = dry_run
@@ -58,7 +66,7 @@ class KeycloakAdmin:
         }).encode()
         request = urllib.request.Request(f"{self.base_url}/realms/master/protocol/openid-connect/token", data=body)
         try:
-            with urllib.request.urlopen(request, timeout=15) as response:
+            with urllib.request.urlopen(request, timeout=15, context=self.context) as response:
                 self.token = json.load(response)["access_token"]
         except urllib.error.HTTPError as error:
             sys.exit(f"Admin sign-in failed (HTTP {error.code}). Check the admin username and password.")
@@ -75,7 +83,7 @@ class KeycloakAdmin:
             "Authorization": f"Bearer {self.token}", "Content-Type": "application/json",
         })
         try:
-            with urllib.request.urlopen(request, timeout=15) as response:
+            with urllib.request.urlopen(request, timeout=15, context=self.context) as response:
                 raw = response.read()
                 return response.status, json.loads(raw) if raw else None, response.headers
         except urllib.error.HTTPError as error:

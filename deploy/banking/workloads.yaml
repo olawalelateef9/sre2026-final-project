@@ -83,11 +83,14 @@ spec:
           image: ghcr.io/olawalelateef9/techbleat-user-service@sha256:56a1cda307114db2489e63aa615b43f1b442a8e4f4af274eb584523205213328 # source: 89f24d917cb06a59330cf105436ac8a0fdc0ce9b
           env:
             - {name: FRONTEND_ORIGIN, value: "https://techbleatglobalbank.duckdns.org"}
-            - {name: KEYCLOAK_URL, value: "http://keycloak.keycloak.svc.cluster.local:8080"}
+            # Provisioning goes straight to the identity platform over TLS, verified
+            # against its private CA.
+            - {name: KEYCLOAK_URL, value: "https://keycloak.identity.internal:8443"}
+            - {name: KEYCLOAK_CA_BUNDLE, value: /etc/keycloak-ca/ca.crt}
             - {name: KEYCLOAK_REALM, value: banking}
             - {name: KEYCLOAK_ADMIN_CLIENT_ID, value: banking-provisioner}
             - {name: KEYCLOAK_ISSUER, value: "https://auth.techbleatglobalbank.duckdns.org/realms/banking"}
-            - {name: KEYCLOAK_JWK_SET_URI, value: "http://keycloak.keycloak.svc.cluster.local:8080/realms/banking/protocol/openid-connect/certs"}
+            - {name: KEYCLOAK_JWK_SET_URI, value: "https://auth.techbleatglobalbank.duckdns.org/realms/banking/protocol/openid-connect/certs"}
             - {name: KEYCLOAK_AUDIENCE, value: banking-api}
           envFrom:
             - secretRef: {name: user-service-config}
@@ -106,6 +109,11 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: keycloak-ca, mountPath: /etc/keycloak-ca, readOnly: true}
+      volumes:
+        - name: keycloak-ca
+          secret: {secretName: keycloak-ca}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -136,7 +144,7 @@ spec:
             - {name: SERVER_PORT, value: "8080"}
             - {name: FRONTEND_ORIGIN, value: "https://techbleatglobalbank.duckdns.org"}
             - {name: KEYCLOAK_ISSUER, value: "https://auth.techbleatglobalbank.duckdns.org/realms/banking"}
-            - {name: KEYCLOAK_JWK_SET_URI, value: "http://keycloak.keycloak.svc.cluster.local:8080/realms/banking/protocol/openid-connect/certs"}
+            - {name: KEYCLOAK_JWK_SET_URI, value: "https://auth.techbleatglobalbank.duckdns.org/realms/banking/protocol/openid-connect/certs"}
             - {name: KEYCLOAK_AUDIENCE, value: banking-api}
             # Schema and grants are owned by the db-init Job; the service only reads/writes rows.
             - {name: SPRING_JPA_HIBERNATE_DDL_AUTO, value: none}
@@ -214,7 +222,7 @@ spec:
           env:
             - {name: FRONTEND_ORIGIN, value: "https://techbleatglobalbank.duckdns.org"}
             - {name: KEYCLOAK_ISSUER, value: "https://auth.techbleatglobalbank.duckdns.org/realms/banking"}
-            - {name: KEYCLOAK_JWK_SET_URI, value: "http://keycloak.keycloak.svc.cluster.local:8080/realms/banking/protocol/openid-connect/certs"}
+            - {name: KEYCLOAK_JWK_SET_URI, value: "https://auth.techbleatglobalbank.duckdns.org/realms/banking/protocol/openid-connect/certs"}
             - {name: KEYCLOAK_AUDIENCE, value: banking-api}
             - {name: KAFKA_BOOTSTRAP_SERVERS, value: "banking-kafka-kafka-bootstrap.banking.svc:9093"}
             - {name: KAFKA_SECURITY_PROTOCOL, value: SSL}
@@ -275,7 +283,7 @@ spec:
           image: ghcr.io/olawalelateef9/techbleat-finance-agent@sha256:8bddf845fd8f5eb0cfebffbcb3c3c6c1400ea985c1ff950261d3419303bac9e7 # source: 89f24d917cb06a59330cf105436ac8a0fdc0ce9b
           env:
             - {name: KEYCLOAK_ISSUER, value: "https://auth.techbleatglobalbank.duckdns.org/realms/banking"}
-            - {name: KEYCLOAK_URL, value: "http://keycloak.keycloak.svc.cluster.local:8080"}
+            - {name: KEYCLOAK_URL, value: "https://auth.techbleatglobalbank.duckdns.org"}
             - {name: KEYCLOAK_REALM, value: banking}
             - {name: KEYCLOAK_AUDIENCE, value: banking-api}
             - {name: TRANSACTION_API_URL, value: "http://transaction-service.banking.svc.cluster.local:8080"}

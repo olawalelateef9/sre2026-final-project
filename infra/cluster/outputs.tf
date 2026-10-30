@@ -24,3 +24,13 @@ output "secret_prefix" {
   description = "Secrets Manager prefix readable by External Secrets."
   value       = local.secret_prefix
 }
+
+output "identity_cluster" {
+  description = "ECS cluster running Keycloak (outside EKS)."
+  value       = aws_ecs_cluster.identity.name
+}
+
+output "identity_ca_pem" {
+  description = "Public certificate of the identity platform's private CA."
+  value       = tls_self_signed_cert.identity_ca.cert_pem
+}

@@ -20,6 +20,9 @@ KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "http://host.docker.internal:8080").rst
 KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "banking")
 KEYCLOAK_ADMIN_CLIENT_ID = os.getenv("KEYCLOAK_ADMIN_CLIENT_ID", "banking-provisioner")
 KEYCLOAK_ADMIN_CLIENT_SECRET = os.getenv("KEYCLOAK_ADMIN_CLIENT_SECRET", "")
+# CA bundle for Keycloak's private TLS certificate (deployed identity platform); unset
+# locally, where Keycloak is plain HTTP or publicly trusted.
+KEYCLOAK_VERIFY = os.getenv("KEYCLOAK_CA_BUNDLE") or True
 
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL is required")
@@ -114,6 +117,7 @@ def create_keycloak_user(user: UserCreate) -> tuple[str, str]:
                 "client_secret": KEYCLOAK_ADMIN_CLIENT_SECRET,
             },
             timeout=10,
+            verify=KEYCLOAK_VERIFY,
         )
     except httpx.RequestError as error:
         raise HTTPException(status_code=502, detail="Unable to reach the identity provider") from error
@@ -142,6 +146,7 @@ def create_keycloak_user(user: UserCreate) -> tuple[str, str]:
                 "emailVerified": False,
             },
             timeout=10,
+            verify=KEYCLOAK_VERIFY,
         )
     except httpx.RequestError as error:
         raise HTTPException(status_code=502, detail="Unable to create the identity-provider account") from error
@@ -162,6 +167,7 @@ def create_keycloak_user(user: UserCreate) -> tuple[str, str]:
             headers=headers,
             json={"type": "password", "value": user.password.get_secret_value(), "temporary": True},
             timeout=10,
+            verify=KEYCLOAK_VERIFY,
         )
     except httpx.RequestError as error:
         delete_keycloak_user(keycloak_user_id, access_token)
@@ -180,6 +186,7 @@ def delete_keycloak_user(keycloak_user_id: str, access_token: str) -> None:
             f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users/{keycloak_user_id}",
             headers={"Authorization": f"Bearer {access_token}"},
             timeout=10,
+            verify=KEYCLOAK_VERIFY,
         )
     except httpx.RequestError:
         pass

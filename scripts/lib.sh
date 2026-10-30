@@ -84,6 +84,55 @@ cluster_secret() {
     python -c "import json,sys; print(json.load(sys.stdin)['$2'])"
 }
 
+# Prints one property of a techbleat/identity/* secret (identity platform, outside EKS).
+identity_secret() {
+  aws secretsmanager get-secret-value --region "$REGION" --secret-id "techbleat/identity/$1" \
+    --query SecretString --output text |
+    python -c "import json,sys; print(json.load(sys.stdin)['$2'])"
+}
+
+# Opens an SSM port forward from localhost:18443 to the Keycloak task on ECS (audited in
+# CloudTrail; no inbound network path from the operator). Sets KEYCLOAK_CA_FILE to the
+# identity CA so callers verify Keycloak's certificate. Close with close_keycloak_tunnel.
+open_keycloak_tunnel() {
+  require session-manager-plugin
+  local cluster task runtime session_log ca_file
+  cluster=$(terraform -chdir="$CLUSTER_DIR" output -raw identity_cluster)
+
+  aws ecs wait services-stable --region "$REGION" --cluster "$cluster" --services keycloak ||
+    die "Keycloak service on ECS did not become stable."
+  task=$(aws ecs list-tasks --region "$REGION" --cluster "$cluster" --service-name keycloak \
+    --query 'taskArns[0]' --output text)
+  runtime=$(aws ecs describe-tasks --region "$REGION" --cluster "$cluster" --tasks "$task" \
+    --query "tasks[0].containers[?name=='keycloak'].runtimeId | [0]" --output text)
+
+  ca_file=$(mktemp)
+  terraform -chdir="$CLUSTER_DIR" output -raw identity_ca_pem > "$ca_file"
+  KEYCLOAK_CA_FILE=$ca_file
+  command -v cygpath >/dev/null 2>&1 && KEYCLOAK_CA_FILE=$(cygpath -m "$ca_file")
+  export KEYCLOAK_CA_FILE
+
+  session_log=$(mktemp)
+  aws ssm start-session --region "$REGION" --target "ecs:${cluster}_${task##*/}_${runtime}" \
+    --document-name AWS-StartPortForwardingSession \
+    --parameters '{"portNumber":["8443"],"localPortNumber":["18443"]}' > "$session_log" 2>&1 &
+  KEYCLOAK_TUNNEL_LOG=$session_log
+
+  for _ in $(seq 1 30); do
+    curl -fsS --cacert "$ca_file" -o /dev/null https://localhost:18443/realms/master 2>/dev/null && return 0
+    sleep 2
+  done
+  cat "$session_log" >&2
+  die "Could not reach Keycloak through the SSM port forward."
+}
+
+close_keycloak_tunnel() {
+  local session
+  session=$(grep -oE 'SessionId: [^ ]+' "${KEYCLOAK_TUNNEL_LOG:-/dev/null}" 2>/dev/null | head -1 | cut -d' ' -f2 || true)
+  [[ -n "$session" ]] && aws ssm terminate-session --region "$REGION" --session-id "${session%.}" >/dev/null 2>&1 || true
+  rm -f "${KEYCLOAK_TUNNEL_LOG:-}"
+}
+
 # Calls the DuckDNS update API with the given query (ip=... or clear=true). The token is
 # read from DUCKDNS_TOKEN and never printed.
 duckdns_update() {

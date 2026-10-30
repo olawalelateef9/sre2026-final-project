@@ -1,0 +1,31 @@
+# The gateway talks to the external Keycloak over TLS and verifies its certificate against
+# the identity platform's private CA (public certificate only, from Secrets Manager).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: keycloak-ca
+  namespace: istio-ingress
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: aws-secrets-manager
+  target:
+    name: keycloak-ca
+  data:
+    - {secretKey: ca.crt, remoteRef: {key: keycloak/ca, property: ca_crt}}
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: keycloak-tls
+  namespace: istio-ingress
+spec:
+  host: keycloak.keycloak.svc.cluster.local
+  exportTo: ["."]
+  trafficPolicy:
+    tls:
+      mode: SIMPLE
+      credentialName: keycloak-ca
+      sni: keycloak.identity.internal
+      subjectAltNames: [keycloak.identity.internal]

@@ -18,7 +18,7 @@ source "$(dirname "$0")/lib.sh"
 ASSUME_YES=false
 [[ "${1:-}" == "--yes" ]] && ASSUME_YES=true
 
-require aws terraform kubectl helm curl python
+require aws terraform kubectl helm curl python session-manager-plugin
 [[ -n "${DUCKDNS_TOKEN:-}" ]] || die "DUCKDNS_TOKEN is not set (see infra/README.md)."
 load_bootstrap_outputs
 
@@ -103,21 +103,15 @@ wait_for_applications 1800
 
 # ---- 6. Keycloak realm --------------------------------------------------------------------
 
-log "Configuring the Keycloak realm..."
-kubectl rollout status deployment/keycloak -n keycloak --timeout=10m >/dev/null
-kubectl port-forward -n keycloak svc/keycloak 18080:8080 >/dev/null 2>&1 &
-forward_pid=$!
-trap 'kill $forward_pid 2>/dev/null || true' EXIT
-for _ in $(seq 1 30); do
-  curl -fsS -o /dev/null http://localhost:18080/realms/master && break
-  sleep 2
-done
+log "Configuring the Keycloak realm (SSM port forward to the identity platform on ECS)..."
+open_keycloak_tunnel
+trap close_keycloak_tunnel EXIT
 
-KEYCLOAK_URL=http://localhost:18080 \
+KEYCLOAK_URL=https://localhost:18443 \
 FRONTEND_URL="https://$DOMAIN" \
 KEYCLOAK_SSL_REQUIRED=all \
-KEYCLOAK_ADMIN_USERNAME=$(cluster_secret keycloak/admin username) \
-KEYCLOAK_ADMIN_PASSWORD=$(cluster_secret keycloak/admin password) \
+KEYCLOAK_ADMIN_USERNAME=$(identity_secret admin username) \
+KEYCLOAK_ADMIN_PASSWORD=$(identity_secret admin password) \
 KEYCLOAK_PROVISIONER_SECRET=$(cluster_secret keycloak/provisioner client_secret) \
   python "$ROOT_DIR/keycloak/configure_realm.py"
 
@@ -149,14 +143,14 @@ else
     --secret-string "file://$demo_path" >/dev/null
 fi
 APP_URL="https://$DOMAIN" \
-KEYCLOAK_URL=http://localhost:18080 \
-KEYCLOAK_ADMIN_USERNAME=$(cluster_secret keycloak/admin username) \
-KEYCLOAK_ADMIN_PASSWORD=$(cluster_secret keycloak/admin password) \
+KEYCLOAK_URL=https://localhost:18443 \
+KEYCLOAK_ADMIN_USERNAME=$(identity_secret admin username) \
+KEYCLOAK_ADMIN_PASSWORD=$(identity_secret admin password) \
 DEMO_USERS=$(cat "$demo_file") \
   python "$ROOT_DIR/keycloak/seed_demo_users.py"
 rm -f "$demo_file"
 
-kill $forward_pid 2>/dev/null || true
+close_keycloak_tunnel
 trap - EXIT
 
 # ---- Done ---------------------------------------------------------------------------------
@@ -165,7 +159,7 @@ log "Environment is up after $(( ($(date +%s) - started) / 60 )) minutes."
 cat <<EOF
 
   App:        https://$DOMAIN
-  Keycloak:   https://auth.$DOMAIN  (admin console: kubectl port-forward -n keycloak svc/keycloak 18080:8080)
+  Keycloak:   https://auth.$DOMAIN  (ECS Fargate, outside EKS; admin console: bash scripts/keycloak-admin.sh)
   Demo users: alice, bob. Passwords: aws secretsmanager get-secret-value --region $REGION --secret-id $DEMO_USERS_SECRET --query SecretString --output text
   Argo CD:    kubectl port-forward -n argocd svc/argocd-server 8443:443  -> https://localhost:8443
               admin password: kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d

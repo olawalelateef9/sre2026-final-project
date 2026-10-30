@@ -21,7 +21,6 @@ spec:
     - {secretKey: USER_SERVICE_PASSWORD, remoteRef: {key: db/user_service, property: password}}
     - {secretKey: TRANSACTION_SERVICE_PASSWORD, remoteRef: {key: db/transaction_service, property: password}}
     - {secretKey: ACTIVITY_SERVICE_PASSWORD, remoteRef: {key: db/activity_service, property: password}}
-    - {secretKey: KEYCLOAK_PASSWORD, remoteRef: {key: db/keycloak, property: password}}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -32,18 +31,12 @@ data:
   roles.sql: |
     -- Roles: one login per service, created once, password always reset to the current value.
     SELECT format('CREATE ROLE %I LOGIN', r)
-    FROM unnest(ARRAY['user_service', 'transaction_service', 'activity_service', 'keycloak']) AS r
+    FROM unnest(ARRAY['user_service', 'transaction_service', 'activity_service']) AS r
     WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) \gexec
     ALTER ROLE user_service PASSWORD :'user_service_password';
     ALTER ROLE transaction_service PASSWORD :'transaction_service_password';
     ALTER ROLE activity_service PASSWORD :'activity_service_password';
-    ALTER ROLE keycloak PASSWORD :'keycloak_password';
-
-    -- Keycloak gets its own database that it owns; nothing else can connect to it.
-    GRANT keycloak TO CURRENT_USER WITH SET TRUE;
-    SELECT 'CREATE DATABASE keycloak OWNER keycloak'
-    WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'keycloak') \gexec
-    REVOKE ALL ON DATABASE keycloak FROM PUBLIC;
+    -- Keycloak has its own RDS instance on the identity platform (not this database).
 
     REVOKE ALL ON DATABASE bankingdb FROM PUBLIC;
     GRANT CONNECT ON DATABASE bankingdb TO user_service, transaction_service, activity_service;
@@ -124,7 +117,6 @@ spec:
                 -v user_service_password="$USER_SERVICE_PASSWORD" \
                 -v transaction_service_password="$TRANSACTION_SERVICE_PASSWORD" \
                 -v activity_service_password="$ACTIVITY_SERVICE_PASSWORD" \
-                -v keycloak_password="$KEYCLOAK_PASSWORD" \
                 -f /sql/roles.sql
               psql -X -v ON_ERROR_STOP=1 -d bankingdb -f /sql/schema.sql
               echo "Database roles and schema are up to date."
