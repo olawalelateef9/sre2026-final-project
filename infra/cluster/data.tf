@@ -96,10 +96,16 @@ resource "aws_db_instance" "postgres" {
   multi_az               = false
 
   auto_minor_version_upgrade = true
-  backup_retention_period    = 1
-  copy_tags_to_snapshot      = true
+  # Automated daily snapshots plus transaction logs every 5 minutes: point-in-time recovery
+  # to any second in the last 7 days (RPO <= 10 min: logs ship about every 5 min). Restore is rehearsed by
+  # scripts/restore-drill.sh into a separate non-production instance.
+  backup_retention_period = 7
+  backup_window           = "02:00-02:30"
+  copy_tags_to_snapshot   = true
 
-  # Ephemeral sandbox: data does not outlive the session (see Phase 4 for backup/restore).
+  # Ephemeral sandbox: the session's data is discarded at `down`, together with its automated
+  # backups. Production would set deletion_protection, a final snapshot, and cross-region
+  # backup copies (AWS Backup).
   skip_final_snapshot = true
   deletion_protection = false
   apply_immediately   = true

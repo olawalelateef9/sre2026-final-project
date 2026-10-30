@@ -101,6 +101,16 @@ print(json.dumps({'apiVersion': 'v1', 'kind': 'Secret', 'type': s['type'], 'meta
     log "Cluster API not reachable (already deleted, or this IP is not allowed); skipping in-cluster cleanup."
   fi
 
+  # Restore-drill instances are created outside Terraform; they would keep billing and
+  # block deletion of the subnets.
+  for drill in $(aws rds describe-db-instances --region "$REGION" \
+      --query "DBInstances[?contains(DBInstanceIdentifier, 'restore-drill')].DBInstanceIdentifier" --output text); do
+    log "Deleting leftover restore-drill instance $drill..."
+    aws rds delete-db-instance --region "$REGION" --db-instance-identifier "$drill" \
+      --skip-final-snapshot --delete-automated-backups >/dev/null 2>&1 || true
+    aws rds wait db-instance-deleted --region "$REGION" --db-instance-identifier "$drill" || true
+  done
+
   log "Destroying the cluster stack..."
   terraform -chdir="$CLUSTER_DIR" destroy -input=false -auto-approve \
     -var="region=$REGION" -var='admin_cidrs=["127.0.0.1/32"]'

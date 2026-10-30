@@ -173,7 +173,8 @@ resource "aws_db_instance" "identity" {
   multi_az               = false
 
   auto_minor_version_upgrade = true
-  backup_retention_period    = 1
+  backup_retention_period    = 7
+  backup_window              = "02:30-03:00"
   copy_tags_to_snapshot      = true
   skip_final_snapshot        = true
   deletion_protection        = false
