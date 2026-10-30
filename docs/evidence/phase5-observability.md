@@ -30,7 +30,10 @@ before logs leave the cluster.
 | Step | Time (UTC) | Result |
 |---|---|---|
 | 30 forged-token requests to the transaction API | 12:48:45–12:49:03 | 30 × `401` |
-| Monitor `[techbleat] Spike in authentication failures` | about 90 s later | State `Alert`; notification emailed to the operator with a runbook link ([authentication-failures](../runbook.md#authentication-failures)) |
+| Monitor `[techbleat] Spike in authentication failures` | about 90 s later | State `Alert`, then `Recovered` |
+| Delivery check | | First recipient address received nothing (not the Datadog account's address; likely filtered). Recipient changed to the operator's Datadog account address. |
+| Repeat: 30 forged-token requests | 13:19:54–13:20:02 | 30 × `401` |
+| Alert fired | 13:21:26 (about 90 s) | **Triggered and Recovered emails both received** by the operator, each linking to the runbook ([authentication-failures](../runbook.md#authentication-failures)) and the matching logs |
 
 ## Monitors (Terraform, `infra/datadog/monitors.tf`)
 
