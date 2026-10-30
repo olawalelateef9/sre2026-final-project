@@ -15,13 +15,29 @@ spec:
   data:
     - {secretKey: ca.crt, remoteRef: {key: keycloak/ca, property: ca_crt}}
 ---
+# Registers the external Keycloak with the mesh for the gateway only. Istio treats the
+# keycloak ExternalName Service as an alias of this host, so without it the gateway had
+# no upstream for the route (500, cluster_not_found).
+apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: keycloak
+  namespace: istio-ingress
+spec:
+  hosts: [keycloak.identity.internal]
+  location: MESH_EXTERNAL
+  resolution: DNS
+  ports:
+    - {number: 8443, name: http, protocol: HTTP}
+  exportTo: ["."]
+---
 apiVersion: networking.istio.io/v1
 kind: DestinationRule
 metadata:
   name: keycloak-tls
   namespace: istio-ingress
 spec:
-  host: keycloak.keycloak.svc.cluster.local
+  host: keycloak.identity.internal
   exportTo: ["."]
   trafficPolicy:
     tls:
