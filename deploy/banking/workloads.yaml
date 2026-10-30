@@ -13,7 +13,11 @@ spec:
     matchLabels: {app: frontend}
   template:
     metadata:
-      labels: {app: frontend}
+      labels:
+        app: frontend
+        # Datadog unified service tagging (logs, metrics and traces share these).
+        tags.datadoghq.com/env: sandbox
+        tags.datadoghq.com/service: frontend
     spec:
       serviceAccountName: frontend
       automountServiceAccountToken: false
@@ -69,7 +73,11 @@ spec:
     matchLabels: {app: user-service}
   template:
     metadata:
-      labels: {app: user-service}
+      labels:
+        app: user-service
+        # Datadog unified service tagging (logs, metrics and traces share these).
+        tags.datadoghq.com/env: sandbox
+        tags.datadoghq.com/service: user-service
     spec:
       serviceAccountName: user-service
       automountServiceAccountToken: false
@@ -127,7 +135,11 @@ spec:
     matchLabels: {app: transaction-service}
   template:
     metadata:
-      labels: {app: transaction-service}
+      labels:
+        app: transaction-service
+        # Datadog unified service tagging (logs, metrics and traces share these).
+        tags.datadoghq.com/env: sandbox
+        tags.datadoghq.com/service: transaction-service
     spec:
       serviceAccountName: transaction-service
       automountServiceAccountToken: false
@@ -206,7 +218,11 @@ spec:
     matchLabels: {app: activity-service}
   template:
     metadata:
-      labels: {app: activity-service}
+      labels:
+        app: activity-service
+        # Datadog unified service tagging (logs, metrics and traces share these).
+        tags.datadoghq.com/env: sandbox
+        tags.datadoghq.com/service: activity-service
     spec:
       serviceAccountName: activity-service
       automountServiceAccountToken: false
@@ -269,7 +285,11 @@ spec:
     matchLabels: {app: finance-agent}
   template:
     metadata:
-      labels: {app: finance-agent}
+      labels:
+        app: finance-agent
+        # Datadog unified service tagging (logs, metrics and traces share these).
+        tags.datadoghq.com/env: sandbox
+        tags.datadoghq.com/service: finance-agent
     spec:
       serviceAccountName: finance-agent
       automountServiceAccountToken: false

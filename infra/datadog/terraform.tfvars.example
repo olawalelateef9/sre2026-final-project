@@ -1,0 +1,2 @@
+# Copy to terraform.tfvars (git-ignored).
+notify_email = "you@example.com"

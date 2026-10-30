@@ -1,0 +1,22 @@
+# Observability plumbing owned by this repository: the Datadog API key from Secrets
+# Manager, and mesh-wide tracing of every request through the Istio proxies.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: observability
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/olawalelateef9/sre2026-final-project.git
+    targetRevision: main
+    path: deploy/observability
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    retry:
+      limit: 10
+      backoff: {duration: 15s, factor: 2, maxDuration: 3m}

@@ -1,0 +1,30 @@
+# Datadog API key, delivered from AWS Secrets Manager (techbleat/cluster/datadog, written by
+# scripts/up.sh from the operator's DD_API_KEY; never stored in Git).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: datadog-secret
+  namespace: datadog
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: aws-secrets-manager
+  target:
+    name: datadog-secret
+  data:
+    - {secretKey: api-key, remoteRef: {key: datadog, property: api_key}}
+---
+# Mesh-wide tracing: every Envoy proxy (gateway and sidecars) sends spans to the Datadog
+# Agent on its node, so each request is traced across services without code changes.
+# 100% sampling suits the low-traffic sandbox; production would sample.
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: mesh-default
+  namespace: istio-system
+spec:
+  tracing:
+    - providers:
+        - name: datadog
+      randomSamplingPercentage: 100

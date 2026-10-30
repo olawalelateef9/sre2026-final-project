@@ -25,6 +25,15 @@ metadata:
     istio-injection: enabled
     pod-security.kubernetes.io/enforce: restricted
 ---
+# Datadog Agent: reads node-level metrics and logs through host paths, so it needs the
+# privileged Pod Security level; nothing else runs here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: datadog
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
 # One-off administrative jobs (database setup) that hold master credentials; no sidecars
 # so Jobs complete, and egress limited by NetworkPolicy.
 apiVersion: v1

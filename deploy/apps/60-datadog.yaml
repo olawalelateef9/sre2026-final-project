@@ -1,0 +1,76 @@
+# Datadog Agent and Cluster Agent: infrastructure and container metrics, container logs,
+# Istio metrics, and APM traces from every Envoy proxy (deploy/observability).
+#
+# Logs are scrubbed by the Agent before they leave the cluster: bearer tokens, JWTs and
+# JSON password fields are masked (A10). The API key comes from Secrets Manager.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: datadog
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  project: platform
+  source:
+    repoURL: https://helm.datadoghq.com
+    chart: datadog
+    targetRevision: 3.264.0
+    helm:
+      valuesObject:
+        datadog:
+          site: datadoghq.eu
+          apiKeyExistingSecret: datadog-secret
+          clusterName: techbleat
+          tags:
+            - env:sandbox
+            - project:techbleat-global-bank
+          # EKS kubelets serve self-signed certificates.
+          kubelet:
+            tlsVerify: false
+          logs:
+            enabled: true
+            containerCollectAll: true
+          apm:
+            # Envoy's Datadog tracer sends to the node-local Service on 8126.
+            portEnabled: true
+          processAgent:
+            processCollection: false
+          env:
+            - name: DD_LOGS_CONFIG_PROCESSING_RULES
+              value: >-
+                [{"type":"mask_sequences","name":"bearer_tokens","replace_placeholder":"Bearer [REDACTED]","pattern":"(?i)bearer\\s+[A-Za-z0-9._~+/=-]+"},
+                {"type":"mask_sequences","name":"jwts","replace_placeholder":"[REDACTED_JWT]","pattern":"eyJ[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]*"},
+                {"type":"mask_sequences","name":"json_passwords","replace_placeholder":"\"password\":\"[REDACTED]\"","pattern":"\"(?i:password|client_secret|secret)\"\\s*:\\s*\"[^\"]*\""}]
+        clusterAgent:
+          replicas: 1
+          # No library injection: an admission webhook the control plane cannot reach
+          # would slow or block pod creation across the cluster.
+          admissionController:
+            enabled: false
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 256Mi}
+        agents:
+          image:
+            tag: 7.84.6
+          containers:
+            agent:
+              resources:
+                requests: {cpu: 100m, memory: 256Mi}
+                limits: {memory: 512Mi}
+            traceAgent:
+              resources:
+                requests: {cpu: 25m, memory: 64Mi}
+                limits: {memory: 256Mi}
+        clusterChecksRunner:
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: datadog
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    retry:
+      limit: 10
+      backoff: {duration: 15s, factor: 2, maxDuration: 3m}
+    syncOptions: [ServerSideApply=true]

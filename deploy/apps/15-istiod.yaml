@@ -36,6 +36,13 @@ spec:
             mode: ALLOW_ANY
           defaultConfig:
             holdApplicationUntilProxyStarts: true
+          # Datadog tracer in every proxy; enabled mesh-wide by the Telemetry resource in
+          # deploy/observability. The Agent's node-local Service receives the spans.
+          extensionProviders:
+            - name: datadog
+              datadog:
+                service: datadog.datadog.svc.cluster.local
+                port: 8126
   destination:
     server: https://kubernetes.default.svc
     namespace: istio-system

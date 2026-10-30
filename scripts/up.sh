@@ -72,6 +72,28 @@ fi
 
 # ---- 4. GitOps --------------------------------------------------------------------------------
 
+# ---- Datadog API key -> Secrets Manager (External Secrets delivers it to the Agent) ------
+
+if [[ -n "${DD_API_KEY:-}" ]]; then
+  log "Storing the Datadog API key in Secrets Manager (techbleat/cluster/datadog)..."
+  dd_file=$(mktemp)
+  chmod 600 "$dd_file"
+  python -c "import json,os; print(json.dumps({'api_key': os.environ['DD_API_KEY']}))" > "$dd_file"
+  dd_path=$dd_file
+  command -v cygpath >/dev/null 2>&1 && dd_path=$(cygpath -m "$dd_file")
+  if aws secretsmanager describe-secret --region "$REGION" --secret-id techbleat/cluster/datadog >/dev/null 2>&1; then
+    aws secretsmanager put-secret-value --region "$REGION" --secret-id techbleat/cluster/datadog \
+      --secret-string "file://$dd_path" >/dev/null
+  else
+    aws secretsmanager create-secret --region "$REGION" --name techbleat/cluster/datadog \
+      --description "Datadog API key for the Agent (from the operator's DD_API_KEY)" \
+      --secret-string "file://$dd_path" >/dev/null
+  fi
+  rm -f "$dd_file"
+else
+  log "WARNING: DD_API_KEY is not set; the Datadog Agent will not be able to send data."
+fi
+
 log "Handing over to Argo CD (deploy/ on main)..."
 kubectl apply -f "$ROOT_DIR/deploy/argocd/projects.yaml" -f "$ROOT_DIR/deploy/argocd/root.yaml" >/dev/null
 

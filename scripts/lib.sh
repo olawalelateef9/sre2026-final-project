@@ -39,6 +39,7 @@ if [[ "${TERRAFORM_DOCKER:-auto}" == "1" || ( "${TERRAFORM_DOCKER:-auto}" == "au
       -v techbleat-terraform-data:/tfdata \
       -e "TF_DATA_DIR=/tfdata/$stack" \
       -e AWS_PROFILE -e AWS_REGION -e TF_IN_AUTOMATION=1 \
+      -e DD_API_KEY -e DD_APP_KEY -e DD_HOST \
       -w /work "$TERRAFORM_IMAGE" "${args[@]}"
   }
 fi
