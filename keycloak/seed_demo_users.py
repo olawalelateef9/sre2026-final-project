@@ -17,6 +17,7 @@ Needs only the Python standard library.
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -31,15 +32,23 @@ ROLES = ["banking-customer", "banking-transact"]
 def register(app_url, user):
     """POST /user-api/users; an existing user (400/409) is fine."""
     body = json.dumps({key: user[key] for key in ("id", "full_name", "email", "password")}).encode()
-    request = urllib.request.Request(f"{app_url}/user-api/users", data=body, method="POST",
-                                     headers={"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(request, timeout=30):
-            return "registered"
-    except urllib.error.HTTPError as error:
-        if error.code in (400, 409):
-            return "already registered"
-        sys.exit(f"Registering {user['id']} failed: HTTP {error.code} {error.read().decode(errors='replace')[:200]}")
+    # Retries connection failures: right after `up` repoints DNS, local resolvers can still
+    # hold the previous session's (now gone) load balancer address for a minute or two.
+    for attempt in range(1, 9):
+        request = urllib.request.Request(f"{app_url}/user-api/users", data=body, method="POST",
+                                         headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(request, timeout=30):
+                return "registered"
+        except urllib.error.HTTPError as error:
+            if error.code in (400, 409):
+                return "already registered"
+            sys.exit(f"Registering {user['id']} failed: HTTP {error.code} {error.read().decode(errors='replace')[:200]}")
+        except (urllib.error.URLError, TimeoutError) as error:
+            if attempt == 8:
+                sys.exit(f"Registering {user['id']} failed: {error}")
+            print(f"  {user['id']}: app not reachable yet ({type(error).__name__}), retrying in 15s")
+            time.sleep(15)
 
 
 def make_ready(kc, user, newly_registered):

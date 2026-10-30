@@ -61,6 +61,9 @@ class KeycloakAdmin:
         self.token = None
 
     def login(self, username, password):
+        # Kept so call() can sign in again: master-realm admin tokens last only 60 seconds,
+        # less than a full run against a remote Keycloak.
+        self._credentials = (username, password)
         body = urllib.parse.urlencode({
             "grant_type": "password", "client_id": "admin-cli", "username": username, "password": password,
         }).encode()
@@ -73,7 +76,7 @@ class KeycloakAdmin:
         except urllib.error.URLError as error:
             sys.exit(f"Cannot reach Keycloak at {self.base_url}: {error.reason}")
 
-    def call(self, method, path, body=None):
+    def call(self, method, path, body=None, _retried=False):
         """Calls the admin API for this realm ('' path = the realm itself). Returns (status, json, headers)."""
         if method != "GET" and self.dry_run:
             return 204, None, {}
@@ -89,6 +92,9 @@ class KeycloakAdmin:
         except urllib.error.HTTPError as error:
             if method == "GET" and error.code == 404:
                 return 404, None, error.headers
+            if error.code == 401 and not _retried and getattr(self, "_credentials", None):
+                self.login(*self._credentials)
+                return self.call(method, path, body, _retried=True)
             detail = error.read().decode(errors="replace")[:300]
             sys.exit(f"{method} {url} failed: HTTP {error.code} {detail}")
 

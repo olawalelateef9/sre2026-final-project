@@ -118,8 +118,11 @@ open_keycloak_tunnel() {
     --parameters '{"portNumber":["8443"],"localPortNumber":["18443"]}' > "$session_log" 2>&1 &
   KEYCLOAK_TUNNEL_LOG=$session_log
 
+  # Python's TLS verifies against the CA without requiring revocation data, which the
+  # private CA does not publish (Windows curl/Schannel refuses such certificates).
   for _ in $(seq 1 30); do
-    curl -fsS --cacert "$ca_file" -o /dev/null https://localhost:18443/realms/master 2>/dev/null && return 0
+    python -c "import ssl,sys,urllib.request; urllib.request.urlopen('https://localhost:18443/realms/master', timeout=5, context=ssl.create_default_context(cafile=sys.argv[1]))" \
+      "$KEYCLOAK_CA_FILE" >/dev/null 2>&1 && return 0
     sleep 2
   done
   cat "$session_log" >&2
