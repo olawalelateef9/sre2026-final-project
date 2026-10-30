@@ -9,12 +9,14 @@ created by hand, and no secret lives in Git.
 |---|---|---|
 | Terraform state bucket, budget alert, TLS certificate backup | Permanent (pennies per month) | [`bootstrap/`](./bootstrap) |
 | VPC, EKS, RDS PostgreSQL, ElastiCache Valkey, IAM roles, Secrets Manager entries | Per session | [`cluster/`](./cluster) |
+| Identity platform: Keycloak on ECS Fargate, its own RDS instance, private CA, Cloud Map DNS | Per session, **outside EKS** | [`cluster/identity.tf`](./cluster/identity.tf) |
 | Everything inside the cluster | Per session, reconciled by Argo CD from `main` | [`../deploy/`](../deploy) |
 
 ## Prerequisites
 
 - AWS credentials for the target account in `~/.aws` (region `eu-west-2`)
-- Terraform **64-bit** ≥ 1.10, kubectl, Helm, Python 3, curl, and Git Bash on Windows
+- Terraform **64-bit** ≥ 1.10 (on Windows the scripts run it in Docker instead), kubectl, Helm, Python 3, curl,
+  Docker, the [AWS Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html), and Git Bash on Windows
 - `DUCKDNS_TOKEN` environment variable set to the DuckDNS account token. Never put
   it in a file in this repository. On Windows:
   `[Environment]::SetEnvironmentVariable("DUCKDNS_TOKEN", "<token>", "User")`, then
@@ -64,7 +66,7 @@ You can run that check at any time.
 |---|---|
 | Banking app | https://techbleatglobalbank.duckdns.org |
 | Keycloak login pages | https://auth.techbleatglobalbank.duckdns.org/realms/banking/... (nothing else is routed publicly) |
-| Keycloak admin console | `kubectl port-forward -n keycloak svc/keycloak 18080:8080`, then http://localhost:18080. Credentials are in Secrets Manager under `techbleat/cluster/keycloak/admin`. |
+| Keycloak admin console | `bash scripts/keycloak-admin.sh` opens an SSM port forward to the Keycloak task on ECS (needs the AWS Session Manager plugin), then https://localhost:18443/admin. The browser warns about the private CA, which is expected. Credentials are in Secrets Manager under `techbleat/identity/admin`. |
 | Argo CD | `kubectl port-forward -n argocd svc/argocd-server 8443:443`, then https://localhost:8443. The password is in the `argocd-initial-admin-secret` Secret. |
 | kubectl | `export KUBECONFIG=infra/.kubeconfig` (written by `up.sh`) |
 
