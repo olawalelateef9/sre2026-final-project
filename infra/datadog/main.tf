@@ -30,9 +30,10 @@ locals {
   notify  = "@${var.notify_email}"
   tags    = ["env:sandbox", "project:techbleat-global-bank", "managed-by:terraform"]
 
-  # The gateway's view of every public request (Istio standard metrics).
-  gateway_requests = "istio.mesh.request.count{reporter:source,source_workload:public-istio}"
-  gateway_errors   = "istio.mesh.request.count{reporter:source,source_workload:public-istio,response_code:5*}"
+  # The gateway's view of every public request. The ".total" metrics are per-interval
+  # counts; the metrics without it are cumulative gauges and must not be used for rates.
+  gateway_requests = "istio.mesh.request.count.total{reporter:source,source_workload:public-istio}"
+  gateway_errors   = "istio.mesh.request.count.total{reporter:source,source_workload:public-istio,response_code:5*}"
 }
 
 # ---- AWS integration: CloudWatch metrics for the managed data services and Keycloak ------

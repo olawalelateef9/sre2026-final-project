@@ -14,7 +14,7 @@ locals {
     latency = {
       name     = "[techbleat] Public latency above 1 s"
       type     = "query alert"
-      query    = "avg(last_10m):sum:istio.mesh.request.duration.milliseconds.sum{reporter:source,source_workload:public-istio}.as_count() / sum:istio.mesh.request.duration.milliseconds.count{reporter:source,source_workload:public-istio}.as_count() > 1000"
+      query    = "avg(last_10m):sum:istio.mesh.request.duration.milliseconds.sum.total{reporter:source,source_workload:public-istio}.as_count() / sum:istio.mesh.request.duration.milliseconds.count.total{reporter:source,source_workload:public-istio}.as_count() > 1000"
       critical = 1000
       warning  = 500
       runbook  = "high-latency"

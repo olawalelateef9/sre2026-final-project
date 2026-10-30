@@ -13,7 +13,7 @@
           {"definition": {"type": "slo", "title": "Public availability SLO (99.5%)", "view_type": "detail", "slo_id": "${slo_id}", "time_windows": ["7d", "30d"], "view_mode": "overall", "show_error_budget": true}},
           {"definition": {"type": "timeseries", "title": "Gateway requests by status", "requests": [{"q": "sum:${gateway_requests} by {response_code}.as_count()", "display_type": "bars"}]}},
           {"definition": {"type": "query_value", "title": "5xx error rate (last hour)", "precision": 2, "requests": [{"q": "100 * sum:${gateway_errors}.as_count() / sum:${gateway_requests}.as_count()", "aggregator": "sum"}], "custom_unit": "%"}},
-          {"definition": {"type": "timeseries", "title": "Requests by destination service", "requests": [{"q": "sum:istio.mesh.request.count{reporter:destination,kube_namespace:banking} by {destination_service_name}.as_count()", "display_type": "line"}]}}
+          {"definition": {"type": "timeseries", "title": "Requests by destination service", "requests": [{"q": "sum:istio.mesh.request.count.total{reporter:destination,kube_namespace:banking} by {destination_service_name}.as_count()", "display_type": "line"}]}}
         ]
       }
     },
@@ -23,7 +23,7 @@
         "title": "Latency",
         "layout_type": "ordered",
         "widgets": [
-          {"definition": {"type": "timeseries", "title": "Average gateway latency (ms)", "requests": [{"q": "sum:istio.mesh.request.duration.milliseconds.sum{reporter:source,source_workload:public-istio}.as_count() / sum:istio.mesh.request.duration.milliseconds.count{reporter:source,source_workload:public-istio}.as_count()", "display_type": "line"}]}},
+          {"definition": {"type": "timeseries", "title": "Average gateway latency (ms)", "requests": [{"q": "sum:istio.mesh.request.duration.milliseconds.sum.total{reporter:source,source_workload:public-istio}.as_count() / sum:istio.mesh.request.duration.milliseconds.count.total{reporter:source,source_workload:public-istio}.as_count()", "display_type": "line"}]}},
           {"definition": {"type": "timeseries", "title": "p95 span duration by service (traces)", "requests": [{"q": "p95:trace.envoy.proxy{*} by {service}", "display_type": "line"}]}}
         ]
       }
