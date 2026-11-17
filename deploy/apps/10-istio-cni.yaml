@@ -10,7 +10,7 @@ metadata:
 spec:
   project: platform
   source:
-    repoURL: https://istio-release.storage.googleapis.com/charts
+    repoURL: https://blob.istio.io/istio-release/charts
     chart: cni
     targetRevision: 1.30.7
     helm:

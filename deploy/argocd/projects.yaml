@@ -15,7 +15,7 @@ spec:
     - https://charts.jetstack.io
     - https://charts.external-secrets.io
     - https://strimzi.io/charts
-    - https://istio-release.storage.googleapis.com/charts
+    - https://blob.istio.io/istio-release/charts
     - https://helm.datadoghq.com
   destinations:
     - server: https://kubernetes.default.svc
