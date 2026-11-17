@@ -15,6 +15,9 @@ spec:
     targetRevision: 1.30.7
     helm:
       valuesObject:
+        # Istio's own registry (registry.istio.io, backed by GCR) is being retired.
+        global:
+          hub: docker.io/istio
         cni:
           resources:
             requests: {cpu: 10m, memory: 64Mi}
